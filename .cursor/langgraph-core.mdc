@@ -1,0 +1,283 @@
+---
+description: Core LangGraph concepts - state, nodes, and edges
+globs: 
+  - "**/*.py"
+  - "**/graphs/**"
+  - "**/nodes/**"
+  - "**/state/**"
+---
+
+# LangGraph Core Concepts
+
+## State Management Principles
+
+### Keep State Minimal and Typed
+```python
+from typing import Annotated, TypedDict
+from langgraph.graph.message import add_messages
+from langchain_core.messages import BaseMessage
+
+# ✅ GOOD: Minimal, typed state
+class AgentState(TypedDict):
+    """Agent state for workflow."""
+    messages: Annotated[list[BaseMessage], add_messages]
+    current_step: str
+    max_retries: int
+    retry_count: int
+    error_message: str | None
+
+# ❌ BAD: Bloated, untyped state
+class BadState(TypedDict):
+    messages: list  # Not typed
+    everything: dict  # Too generic
+    temp_data: str  # Should be in function scope
+```
+
+### Use Reducers Sparingly
+- Only use reducers (like `add_messages`) for true accumulation
+- Don't dump transient values into state
+- Pass ephemeral data through function scope
+
+### State Validation
+```python
+from pydantic import BaseModel, Field, validator
+
+class ValidatedState(BaseModel):
+    messages: list[BaseMessage]
+    max_steps: int = Field(default=10, ge=1, le=100)
+    current_step: int = Field(default=0, ge=0)
+    
+    @validator('current_step')
+    def validate_step_count(cls, v, values):
+        if 'max_steps' in values and v > values['max_steps']:
+            raise ValueError('current_step cannot exceed max_steps')
+        return v
+```
+
+## Node Implementation
+
+### Single Responsibility Principle
+Each node should perform ONE task well:
+
+```python
+# ✅ GOOD: Focused nodes
+async def classify_intent_node(state: AgentState) -> dict:
+    """Only classifies user intent."""
+    intent = await classifier.ainvoke(state["messages"])
+    return {"intent": intent}
+
+async def search_docs_node(state: AgentState) -> dict:
+    """Only searches documentation."""
+    results = await search(state["intent"])
+    return {"documents": results}
+
+# ❌ BAD: God node doing everything
+async def bad_god_node(state: dict) -> dict:
+    intent = classify(state["input"])
+    results = search(intent)
+    processed = transform(results)
+    db.save(processed)
+    return {"result": processed}
+```
+
+### Async vs Sync Pattern
+```python
+# Use ASYNC for I/O-bound operations
+async def llm_call_node(state: AgentState) -> dict:
+    """LLM calls, API requests, DB queries."""
+    response = await llm.ainvoke(state["messages"])
+    return {"result": response.content}
+
+# Use SYNC for CPU-bound operations
+def data_transform_node(state: AgentState) -> dict:
+    """Pure computation, data processing."""
+    processed = [item.upper() for item in state["items"]]
+    return {"processed_items": processed}
+```
+
+### Node Structure Template
+```python
+async def example_node(state: AgentState) -> dict[str, Any]:
+    """
+    Brief description of what this node does.
+    
+    Args:
+        state: Current graph state with required fields
+        
+    Returns:
+        Dictionary with updated state fields
+    """
+    try:
+        # Single, clear responsibility
+        result = await process_logic(state)
+        return {"result": result, "error": None}
+    
+    except Exception as e:
+        # Proper error handling
+        return {"error": f"Node failed: {str(e)}"}
+```
+
+## Edge Patterns
+
+### Simple Edges
+Direct connections for linear flow:
+```python
+graph.add_edge("node_a", "node_b")
+graph.add_edge(START, "first_node")
+graph.add_edge("last_node", END)
+```
+
+### Conditional Edges
+Dynamic routing based on state:
+```python
+from typing import Literal
+from langgraph.types import Command
+
+def route_by_urgency(
+    state: AgentState
+) -> Command[Literal["urgent_handler", "standard_handler"]]:
+    """Route based on urgency classification."""
+    if state.get("urgency") == "high":
+        return Command(goto="urgent_handler")
+    return Command(goto="standard_handler")
+
+# Add to graph
+graph.add_conditional_edges("classifier", route_by_urgency)
+```
+
+### Routing Function Best Practices
+```python
+# ✅ GOOD: Concise, decision-focused
+def route_after_validate(state: AgentState) -> Literal["retry", "proceed"]:
+    """Simple routing logic."""
+    if state.get("error") and state["retry_count"] < 3:
+        return "retry"
+    return "proceed"
+
+# ❌ BAD: Complex logic in routing
+def bad_router(state: dict) -> str:
+    result = llm.invoke(state["data"])  # Don't do LLM calls
+    processed = complex_analysis(result)  # Don't do heavy compute
+    external = api.fetch()  # Don't make API calls
+    return "next_node"
+```
+
+### Cycle Protection (CRITICAL)
+Always implement hard stops for loops:
+```python
+class CycleState(TypedDict):
+    current_step: int
+    max_steps: int
+    retry_count: int
+    elapsed_time: float
+
+def check_cycle_limit(state: CycleState) -> Literal["continue", "exit"]:
+    """Prevent infinite loops."""
+    # Hard limit on iterations
+    if state["current_step"] >= state["max_steps"]:
+        return "exit"
+    
+    # Retry limit
+    if state["retry_count"] > 3:
+        return "exit"
+    
+    # Time limit
+    if state["elapsed_time"] > state.get("max_duration", 300):
+        return "exit"
+    
+    return "continue"
+```
+
+## Graph Construction
+
+### Basic Graph Pattern
+```python
+from langgraph.graph import StateGraph, START, END
+
+# Define state
+class MyState(TypedDict):
+    input: str
+    result: str
+
+# Create graph
+graph = StateGraph(MyState)
+
+# Add nodes
+graph.add_node("process", process_node)
+graph.add_node("validate", validate_node)
+
+# Add edges
+graph.add_edge(START, "process")
+graph.add_edge("process", "validate")
+graph.add_edge("validate", END)
+
+# Compile
+compiled = graph.compile()
+```
+
+### With Conditional Routing
+```python
+graph = StateGraph(AgentState)
+
+# Nodes
+graph.add_node("classify", classify_node)
+graph.add_node("urgent", urgent_handler)
+graph.add_node("standard", standard_handler)
+
+# Edges
+graph.add_edge(START, "classify")
+graph.add_conditional_edges(
+    "classify",
+    route_by_urgency,
+    {
+        "urgent_handler": "urgent",
+        "standard_handler": "standard"
+    }
+)
+graph.add_edge("urgent", END)
+graph.add_edge("standard", END)
+
+compiled = graph.compile()
+```
+
+## Essential Imports
+```python
+# Core LangGraph
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import Command, Send
+
+# State Management
+from typing import TypedDict, Annotated, Literal, Any
+from langgraph.graph.message import add_messages
+
+# LangChain Integration
+from langchain_core.messages import (
+    BaseMessage, 
+    HumanMessage, 
+    AIMessage, 
+    SystemMessage
+)
+```
+
+## Quick Reference
+
+### Node Checklist
+- ✅ Single responsibility
+- ✅ Type hints on inputs/outputs
+- ✅ Error handling with try/except
+- ✅ Async for I/O, sync for CPU
+- ✅ Docstring explaining purpose
+- ✅ Return dict with clear keys
+
+### State Checklist
+- ✅ TypedDict or Pydantic BaseModel
+- ✅ Only persistent data
+- ✅ Clear, descriptive field names
+- ✅ Type annotations
+- ✅ Reducers only where needed
+
+### Edge Checklist
+- ✅ Routing functions are simple
+- ✅ No LLM calls in routing
+- ✅ Cycle protection on loops
+- ✅ Clear entry and exit points

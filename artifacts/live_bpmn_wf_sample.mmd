@@ -1,0 +1,82 @@
+flowchart TB
+
+  %% ────────────────
+  %% Swimlanes / Roles
+  %% ────────────────
+
+  subgraph L0[Customer / Exchanger]
+    A0([Start: Decision to sell investment property])
+    A1[Consult tax advisor or attorney]
+    A2[Provide exchange intent and property details]
+    A3[Identify replacement property candidates]
+    A4[Execute contract on replacement property]
+    A5[Close on replacement property]
+    A6([End: Exchange completed or terminated])
+  end
+
+  subgraph L1[Qualified Intermediary]
+    B0[Open exchange file and intake checklist]
+    B1[Prepare exchange agreement and assignments]
+    B2[Send instructions to sale escrow]
+    B3[Hold proceeds in qualified trust account]
+    B4[Receive and validate identification notice]
+    B5[Track deadlines and confirm compliance]
+    B6[Fund replacement escrow]
+    B7[Close exchange file and final accounting]
+  end
+
+  subgraph L2[Relinquished Sale Escrow]
+    C0[Open sale escrow]
+    C1[Receive QI assignment]
+    C2[Close sale of relinquished property]
+    C3[Wire proceeds to QI]
+  end
+
+  subgraph L3[Replacement Purchase Escrow]
+    D0[Open replacement escrow]
+    D1[Receive QI assignment]
+    D2[Receive funds from QI]
+    D3[Close replacement purchase]
+  end
+
+  %% ────────────────
+  %% Core Flow
+  %% ────────────────
+
+  A0 --> A1 --> A2 --> B0 --> B1 --> B2
+  B2 --> C0 --> C1 --> C2 --> C3 --> B3
+
+  %% ────────────────
+  %% Gate: Identification Period
+  %% ────────────────
+
+  B3 --> G1{{Gate: Identification period open}}
+  G1 --> A3 --> G2{Identification received by day 45?}
+
+  G2 -- No --> F1[Exchange fails\nFunds returned per agreement] --> A6
+  G2 -- Yes --> B4 --> G3{Identification valid per IRS rules?}
+
+  G3 -- No --> F2[Correct and resubmit before deadline] --> G1
+  G3 -- Yes --> B5
+
+  %% ────────────────
+  %% Gate: Exchange Completion
+  %% ────────────────
+
+  B5 --> G4{{Gate: Exchange completion period}}
+  G4 --> A4 --> D0 --> D1
+  D1 --> B6 --> D2 --> D3
+
+  D3 --> G5{Closed within 180 days?}
+  G5 -- No --> F3[Exchange fails or partially completes] --> A6
+  G5 -- Yes --> B7 --> A5 --> A6
+
+  %% ────────────────
+  %% Process Improvement Controls
+  %% ────────────────
+
+  B0 --- P0[[Control: Standardized intake\nEntity match, vesting, exchange type]]
+  B2 --- P1[[Control: Clear handoffs\nSingle owner per step]]
+  C2 --- P2[[Control: No constructive receipt\nFunds never touch client]]
+  B4 --- P3[[Control: Identification QA\nSigned, dated, complete]]
+  B6 --- P4[[Control: Funding validation\nAudit trail, correct property]]

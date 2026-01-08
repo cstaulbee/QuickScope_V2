@@ -1,0 +1,465 @@
+---
+description: Testing strategies and patterns for LangGraph applications
+globs:
+  - "**/tests/**"
+  - "**/*_test.py"
+  - "**/test_*.py"
+---
+
+# LangGraph Testing Strategies
+
+## Unit Testing Nodes
+
+### Testing Individual Nodes
+```python
+import pytest
+from unittest.mock import AsyncMock, Mock, patch
+
+@pytest.mark.asyncio
+async def test_llm_node_success():
+    """Test node with mocked LLM."""
+    # Arrange
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = Mock(content="response text")
+    
+    state = {
+        "messages": ["test message"],
+        "error": None
+    }
+    
+    # Act
+    with patch('your_module.llm', mock_llm):
+        result = await llm_node(state)
+    
+    # Assert
+    assert "result" in result
+    assert result["result"] == "response text"
+    assert result.get("error") is None
+    mock_llm.ainvoke.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_llm_node_error_handling():
+    """Test node error handling."""
+    # Arrange
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.side_effect = Exception("API Error")
+    
+    state = {"messages": ["test"]}
+    
+    # Act
+    with patch('your_module.llm', mock_llm):
+        result = await llm_node(state)
+    
+    # Assert
+    assert "error" in result
+    assert "API Error" in result["error"]
+```
+
+### Testing Routing Functions
+```python
+def test_router_urgent_path():
+    """Test routing logic for urgent cases."""
+    # Arrange
+    state = {
+        "urgency": "high",
+        "messages": []
+    }
+    
+    # Act
+    route = route_by_urgency(state)
+    
+    # Assert
+    assert route.goto == "urgent_handler"
+
+def test_router_standard_path():
+    """Test routing logic for standard cases."""
+    state = {"urgency": "low"}
+    
+    route = route_by_urgency(state)
+    
+    assert route.goto == "standard_handler"
+
+def test_router_cycle_protection():
+    """Test that cycles are prevented."""
+    state = {
+        "current_step": 10,
+        "max_steps": 10,
+        "retry_count": 3
+    }
+    
+    result = check_cycle_limit(state)
+    
+    assert result == "exit"
+```
+
+## Integration Testing
+
+### Testing Complete Graph Flow
+```python
+@pytest.mark.integration
+async def test_full_graph_execution():
+    """Test complete graph flow end-to-end."""
+    # Arrange
+    graph = create_agent_graph()
+    initial_state = {
+        "messages": [HumanMessage(content="user question")],
+        "max_steps": 5,
+        "current_step": 0,
+    }
+    
+    # Act
+    final_state = await graph.ainvoke(initial_state)
+    
+    # Assert
+    assert final_state["current_step"] <= 5
+    assert "result" in final_state
+    assert final_state.get("error") is None
+    assert len(final_state["messages"]) > 1
+
+@pytest.mark.integration
+async def test_graph_with_checkpointing():
+    """Test graph with persistence."""
+    from langgraph.checkpoint.memory import MemorySaver
+    
+    # Arrange
+    checkpointer = MemorySaver()
+    graph = create_agent_graph().compile(checkpointer=checkpointer)
+    
+    config = {"configurable": {"thread_id": "test-123"}}
+    
+    # Act - First invocation
+    state1 = await graph.ainvoke(
+        {"messages": [HumanMessage(content="start")]},
+        config=config
+    )
+    
+    # Act - Second invocation (should resume)
+    state2 = await graph.ainvoke(
+        {"messages": [HumanMessage(content="continue")]},
+        config=config
+    )
+    
+    # Assert
+    assert len(state2["messages"]) > len(state1["messages"])
+```
+
+### Testing Error Recovery
+```python
+@pytest.mark.integration
+async def test_error_recovery_flow():
+    """Test that graph recovers from errors."""
+    # Arrange
+    graph = create_agent_graph()
+    state = {
+        "messages": ["trigger error"],
+        "retry_count": 0,
+        "max_steps": 5
+    }
+    
+    # Act
+    final_state = await graph.ainvoke(state)
+    
+    # Assert - Should have recovered
+    assert final_state["retry_count"] > 0
+    assert final_state.get("error") is None
+    assert "result" in final_state
+```
+
+## Test Fixtures
+
+### Common Fixtures
+```python
+import pytest
+from langchain_core.messages import SystemMessage, HumanMessage
+
+@pytest.fixture
+def mock_state():
+    """Provide basic test state."""
+    return {
+        "messages": [
+            SystemMessage(content="You are a helpful assistant"),
+            HumanMessage(content="Test question")
+        ],
+        "max_steps": 10,
+        "current_step": 0,
+        "error": None,
+        "retry_count": 0
+    }
+
+@pytest.fixture
+def mock_llm():
+    """Provide mocked LLM."""
+    mock = AsyncMock()
+    mock.ainvoke.return_value = Mock(
+        content="test response",
+        tool_calls=[]
+    )
+    return mock
+
+@pytest.fixture
+def mock_tools():
+    """Provide mocked tools."""
+    search_tool = AsyncMock()
+    search_tool.ainvoke.return_value = "search results"
+    
+    calc_tool = AsyncMock()
+    calc_tool.ainvoke.return_value = 42
+    
+    return [search_tool, calc_tool]
+
+@pytest.fixture
+def memory_checkpointer():
+    """Provide in-memory checkpointer for tests."""
+    from langgraph.checkpoint.memory import MemorySaver
+    return MemorySaver()
+```
+
+### Parameterized Tests
+```python
+@pytest.mark.parametrize("urgency,expected_route", [
+    ("high", "urgent_handler"),
+    ("medium", "standard_handler"),
+    ("low", "standard_handler"),
+    (None, "standard_handler"),
+])
+def test_routing_scenarios(urgency, expected_route):
+    """Test multiple routing scenarios."""
+    state = {"urgency": urgency}
+    route = route_by_urgency(state)
+    assert route.goto == expected_route
+
+@pytest.mark.parametrize("step,max_steps,should_exit", [
+    (5, 10, False),
+    (10, 10, True),
+    (11, 10, True),
+])
+def test_cycle_limits(step, max_steps, should_exit):
+    """Test cycle protection logic."""
+    state = {
+        "current_step": step,
+        "max_steps": max_steps,
+        "retry_count": 0
+    }
+    result = check_cycle_limit(state)
+    expected = "exit" if should_exit else "continue"
+    assert result == expected
+```
+
+## Mocking Strategies
+
+### Mocking LLM Calls
+```python
+@pytest.fixture
+def mock_llm_with_tools():
+    """Mock LLM with tool calling capability."""
+    mock = AsyncMock()
+    
+    # First call - makes tool call
+    mock.ainvoke.side_effect = [
+        Mock(
+            content="",
+            tool_calls=[{
+                "id": "call_123",
+                "name": "search_tool",
+                "args": {"query": "test"}
+            }]
+        ),
+        # Second call - final response
+        Mock(
+            content="Final answer based on search",
+            tool_calls=[]
+        )
+    ]
+    
+    return mock
+```
+
+### Mocking External Services
+```python
+@pytest.fixture
+def mock_api_client():
+    """Mock external API client."""
+    with patch('your_module.api_client') as mock:
+        mock.get.return_value = {"data": "test"}
+        mock.post.return_value = {"status": "success"}
+        yield mock
+
+@pytest.mark.asyncio
+async def test_node_with_api(mock_api_client):
+    """Test node that calls external API."""
+    state = {"query": "test"}
+    
+    result = await api_node(state)
+    
+    assert result["data"] == "test"
+    mock_api_client.get.assert_called_once()
+```
+
+## Test Organization
+
+### Test File Structure
+```
+tests/
+├── unit/
+│   ├── test_nodes.py          # Individual node tests
+│   ├── test_routing.py        # Routing logic tests
+│   ├── test_state.py          # State validation tests
+│   └── test_tools.py          # Tool tests
+├── integration/
+│   ├── test_graphs.py         # Full graph tests
+│   ├── test_checkpointing.py  # Persistence tests
+│   └── test_error_flows.py    # Error recovery tests
+├── fixtures/
+│   ├── __init__.py
+│   ├── states.py              # Common state fixtures
+│   ├── mocks.py               # Mock objects
+│   └── data.py                # Test data
+└── conftest.py                # Shared fixtures
+```
+
+### Conftest Setup
+```python
+# tests/conftest.py
+import pytest
+import asyncio
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create event loop for async tests."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    """Reset global state before each test."""
+    # Clear caches, reset globals, etc.
+    yield
+    # Cleanup after test
+
+@pytest.fixture
+def temp_env_vars():
+    """Temporarily set environment variables."""
+    import os
+    original = os.environ.copy()
+    
+    os.environ["TEST_MODE"] = "true"
+    os.environ["API_KEY"] = "test-key"
+    
+    yield
+    
+    os.environ.clear()
+    os.environ.update(original)
+```
+
+## Testing Best Practices
+
+### Isolation
+- Mock all external dependencies (LLMs, APIs, databases)
+- Use in-memory checkpointers for tests
+- Don't rely on network calls
+- Reset state between tests
+
+### Coverage
+- Test happy paths
+- Test error conditions
+- Test edge cases (empty input, max limits, etc.)
+- Test state transitions
+- Test retry logic
+
+### Assertions
+```python
+# ✅ GOOD: Specific assertions
+assert result["status"] == "success"
+assert len(result["items"]) == 3
+assert "error" not in result
+
+# ❌ BAD: Vague assertions
+assert result  # Too vague
+assert result["status"]  # Doesn't check value
+```
+
+### Test Naming
+```python
+# ✅ GOOD: Descriptive names
+def test_classifier_node_returns_correct_intent_for_question()
+def test_error_router_escalates_after_max_retries()
+def test_cycle_protection_prevents_infinite_loops()
+
+# ❌ BAD: Vague names
+def test_node()
+def test_error()
+def test_graph()
+```
+
+## Performance Testing
+
+### Timing Tests
+```python
+import time
+
+@pytest.mark.performance
+async def test_graph_execution_time():
+    """Ensure graph completes within time limit."""
+    graph = create_agent_graph()
+    state = {"messages": ["test"]}
+    
+    start = time.time()
+    result = await graph.ainvoke(state)
+    duration = time.time() - start
+    
+    assert duration < 5.0, f"Graph took {duration}s, expected < 5s"
+
+@pytest.mark.performance
+async def test_node_latency():
+    """Test individual node performance."""
+    state = {"data": "test"}
+    
+    start = time.time()
+    result = await fast_node(state)
+    duration = time.time() - start
+    
+    assert duration < 0.1, f"Node took {duration}s, expected < 0.1s"
+```
+
+## Snapshot Testing
+
+### State Snapshots
+```python
+import json
+from pathlib import Path
+
+def test_graph_output_snapshot(tmp_path):
+    """Compare output against known good snapshot."""
+    graph = create_agent_graph()
+    state = {"messages": ["test input"]}
+    
+    result = graph.invoke(state)
+    
+    # Remove non-deterministic fields
+    sanitized = {
+        k: v for k, v in result.items()
+        if k not in ["timestamp", "id"]
+    }
+    
+    # Compare with snapshot
+    snapshot_file = tmp_path / "snapshot.json"
+    if snapshot_file.exists():
+        expected = json.loads(snapshot_file.read_text())
+        assert sanitized == expected
+    else:
+        # Create new snapshot
+        snapshot_file.write_text(json.dumps(sanitized, indent=2))
+```
+
+## Testing Checklist
+- ✅ Unit tests for all nodes
+- ✅ Integration tests for complete flows
+- ✅ Test error handling and recovery
+- ✅ Mock external dependencies
+- ✅ Test state transitions
+- ✅ Test routing logic
+- ✅ Test cycle protection
+- ✅ Use descriptive test names
+- ✅ Organize tests by type
+- ✅ Maintain >80% code coverage

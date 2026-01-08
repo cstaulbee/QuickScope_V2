@@ -1,0 +1,525 @@
+---
+description: Deployment, configuration, and production best practices
+globs:
+  - "**/config/**"
+  - "langgraph.json"
+  - "Dockerfile"
+  - "docker-compose.yml"
+  - "**/settings.py"
+---
+
+# LangGraph Deployment & Configuration
+
+## Configuration Management
+
+### Environment-Based Settings
+```python
+from pydantic_settings import BaseSettings
+from typing import Literal
+
+class Settings(BaseSettings):
+    """Application settings from environment."""
+    
+    # Environment
+    environment: Literal["dev", "staging", "prod"] = "dev"
+    debug: bool = False
+    
+    # LLM Configuration
+    llm_provider: Literal["openai", "anthropic", "azure"] = "openai"
+    llm_model: str = "gpt-4"
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 4000
+    
+    # API Keys
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    
+    # Database
+    database_url: str
+    db_pool_size: int = 10
+    db_pool_max_overflow: int = 5
+    
+    # Redis/Cache
+    redis_url: str | None = None
+    cache_ttl: int = 300
+    
+    # LangSmith
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "langgraph-dev"
+    langsmith_tracing: bool = False
+    
+    # Feature Flags
+    enable_caching: bool = True
+    enable_streaming: bool = True
+    max_retries: int = 3
+    max_steps: int = 20
+    
+    # Performance
+    timeout_seconds: int = 300
+    max_concurrent_requests: int = 10
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+
+# Global settings instance
+settings = Settings()
+```
+
+### Runtime Configuration
+```python
+def get_runtime_config(
+    thread_id: str,
+    namespace: str | None = None,
+    **overrides
+) -> dict:
+    """Build runtime configuration for graph execution."""
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_ns": namespace or f"tenant-{thread_id.split('-')[0]}",
+            "model_provider": settings.llm_provider,
+            "model_name": settings.llm_model,
+            "enable_tracing": settings.langsmith_tracing,
+        },
+        "recursion_limit": settings.max_steps,
+    }
+    
+    # Allow runtime overrides
+    config["configurable"].update(overrides)
+    return config
+```
+
+## langgraph.json Configuration
+
+### Basic Configuration
+```json
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./src/graphs/agent.py:graph"
+  },
+  "env": {
+    "OPENAI_API_KEY": "",
+    "DATABASE_URL": "",
+    "LANGSMITH_API_KEY": ""
+  },
+  "python_version": "3.11"
+}
+```
+
+### Production Configuration
+```json
+{
+  "dependencies": [
+    ".",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langgraph",
+    "langgraph-checkpoint-postgres",
+    "psycopg[binary,pool]",
+    "redis",
+    "pydantic-settings"
+  ],
+  "graphs": {
+    "agent": "./src/graphs/agent.py:graph",
+    "supervisor": "./src/graphs/supervisor.py:supervisor_graph"
+  },
+  "env": {
+    "ENVIRONMENT": "production",
+    "DATABASE_URL": "",
+    "REDIS_URL": "",
+    "OPENAI_API_KEY": "",
+    "LANGSMITH_API_KEY": "",
+    "LANGSMITH_PROJECT": "langgraph-prod",
+    "LANGSMITH_TRACING": "true",
+    "MAX_CONCURRENT_REQUESTS": "50",
+    "TIMEOUT_SECONDS": "300"
+  },
+  "python_version": "3.11",
+  "pip_config_file": "pip.conf",
+  "dockerfile_lines": [
+    "RUN apt-get update && apt-get install -y postgresql-client redis-tools",
+    "RUN pip install --upgrade pip"
+  ]
+}
+```
+
+## Docker Configuration
+
+### Production Dockerfile
+```dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    redis-tools \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+COPY requirements.txt* ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-dev --no-interaction --no-ansi
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Run application
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### Docker Compose
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/langgraph
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGSMITH_TRACING=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=langgraph
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+## Memory & Persistence
+
+### PostgreSQL Checkpointer Setup
+```python
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
+
+# Production: Use connection pooling
+def get_checkpointer() -> PostgresSaver:
+    """Create PostgreSQL checkpointer with connection pooling."""
+    pool = ConnectionPool(
+        conninfo=settings.database_url,
+        min_size=2,
+        max_size=settings.db_pool_size,
+        timeout=30,
+        max_idle=300,
+        max_lifetime=3600,
+    )
+    
+    # Initialize checkpointer
+    with pool.connection() as conn:
+        checkpointer = PostgresSaver(conn)
+        checkpointer.setup()  # Create tables if needed
+    
+    return checkpointer
+
+# Use in graph compilation
+checkpointer = get_checkpointer()
+compiled_graph = graph.compile(checkpointer=checkpointer)
+```
+
+### Redis Caching
+```python
+import redis
+from typing import Any
+import json
+
+class RedisCache:
+    """Redis-based caching for LangGraph."""
+    
+    def __init__(self, redis_url: str, ttl: int = 300):
+        self.client = redis.from_url(redis_url)
+        self.ttl = ttl
+    
+    def get(self, key: str) -> Any | None:
+        """Get cached value."""
+        value = self.client.get(key)
+        if value:
+            return json.loads(value)
+        return None
+    
+    def set(self, key: str, value: Any) -> None:
+        """Set cached value with TTL."""
+        self.client.setex(
+            key,
+            self.ttl,
+            json.dumps(value)
+        )
+    
+    def delete(self, key: str) -> None:
+        """Delete cached value."""
+        self.client.delete(key)
+
+# Usage in nodes
+cache = RedisCache(settings.redis_url, ttl=settings.cache_ttl)
+
+async def cached_search_node(state: AgentState) -> dict:
+    """Search with caching."""
+    query = state["query"]
+    cache_key = f"search:{hash(query)}"
+    
+    # Check cache
+    if settings.enable_caching:
+        cached = cache.get(cache_key)
+        if cached:
+            return {"results": cached, "from_cache": True}
+    
+    # Perform search
+    results = await search_api(query)
+    
+    # Cache results
+    if settings.enable_caching:
+        cache.set(cache_key, results)
+    
+    return {"results": results, "from_cache": False}
+```
+
+## Observability
+
+### LangSmith Integration
+```python
+import os
+
+def setup_langsmith():
+    """Configure LangSmith tracing."""
+    if settings.langsmith_api_key:
+        os.environ["LANGCHAIN_TRACING_V2"] = str(settings.langsmith_tracing)
+        os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
+        os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
+        
+        # Additional metadata
+        os.environ["LANGCHAIN_METADATA"] = json.dumps({
+            "environment": settings.environment,
+            "version": os.getenv("APP_VERSION", "unknown"),
+        })
+
+# Call on startup
+setup_langsmith()
+```
+
+### Structured Logging
+```python
+import logging
+import structlog
+
+def setup_logging():
+    """Configure structured logging."""
+    logging.basicConfig(
+        format="%(message)s",
+        level=logging.INFO if not settings.debug else logging.DEBUG,
+    )
+    
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer()
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+logger = structlog.get_logger()
+
+# Usage
+logger.info(
+    "graph_execution_complete",
+    thread_id=thread_id,
+    steps=final_state["current_step"],
+    duration_ms=duration * 1000,
+)
+```
+
+## Performance Optimization
+
+### Connection Pooling
+```python
+from contextlib import asynccontextmanager
+
+class ConnectionManager:
+    """Manage database connections."""
+    
+    def __init__(self):
+        self.pool = None
+    
+    async def init(self):
+        """Initialize connection pool."""
+        self.pool = await asyncpg.create_pool(
+            settings.database_url,
+            min_size=2,
+            max_size=settings.db_pool_size,
+            command_timeout=60,
+        )
+    
+    async def close(self):
+        """Close connection pool."""
+        if self.pool:
+            await self.pool.close()
+    
+    @asynccontextmanager
+    async def acquire(self):
+        """Acquire connection from pool."""
+        async with self.pool.acquire() as conn:
+            yield conn
+
+# Global instance
+db = ConnectionManager()
+
+# Startup/shutdown
+async def startup():
+    await db.init()
+
+async def shutdown():
+    await db.close()
+```
+
+### Request Concurrency Control
+```python
+import asyncio
+
+class ConcurrencyLimiter:
+    """Limit concurrent requests."""
+    
+    def __init__(self, max_concurrent: int):
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def run(self, coro):
+        """Run coroutine with concurrency limit."""
+        async with self.semaphore:
+            return await coro
+
+# Usage
+limiter = ConcurrencyLimiter(settings.max_concurrent_requests)
+
+async def process_request(state):
+    """Process with concurrency limit."""
+    return await limiter.run(graph.ainvoke(state))
+```
+
+## Monitoring & Alerts
+
+### Health Check Endpoint
+```python
+from fastapi import FastAPI
+from datetime import datetime
+
+app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    try:
+        # Check database
+        async with db.acquire() as conn:
+            await conn.execute("SELECT 1")
+        
+        # Check Redis
+        cache.client.ping()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "environment": settings.environment,
+        }
+    
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+@app.get("/metrics")
+async def metrics():
+    """Metrics endpoint for monitoring."""
+    return {
+        "requests_total": metrics_tracker.requests_total,
+        "errors_total": metrics_tracker.errors_total,
+        "avg_duration_ms": metrics_tracker.avg_duration_ms,
+        "active_threads": metrics_tracker.active_threads,
+    }
+```
+
+## Deployment Checklist
+
+- ✅ Environment variables configured
+- ✅ Database migrations applied
+- ✅ Connection pooling enabled
+- ✅ Caching configured
+- ✅ LangSmith tracing enabled
+- ✅ Health checks implemented
+- ✅ Structured logging configured
+- ✅ Error handling in place
+- ✅ Concurrency limits set
+- ✅ Monitoring/alerting configured
+- ✅ Backup strategy defined
+- ✅ Security hardening applied
+- ✅ Load testing completed
+- ✅ Documentation updated

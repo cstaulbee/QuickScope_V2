@@ -1,0 +1,77 @@
+{
+  "flow_id": "current_state_discovery_complete_v1",
+  "version": "1.0.0",
+  "purpose": "Complete end-to-end current-state discovery: intake + SIPOC → detailed workflow mapping → outputs generation",
+  "composed_from": [
+    "Flow_A_intake_sipoc_v1",
+    "Flow_B_current_state_mapping_v1",
+    "Flow_C_outputs_v1"
+  ],
+  "composition_strategy": "sequential_chain",
+  "description": "This is a meta-flow that chains the three sub-flows. The LangGraph runner can use this to execute the full interview end-to-end, or users can run individual flows separately.",
+  "global_rules": {
+    "tone": {
+      "style": "business-friendly",
+      "jargon_policy": "avoid_technical_terms",
+      "question_style": "one_question_at_a_time",
+      "use_examples": true,
+      "confirm_key_decisions": true
+    },
+    "conversation_policies": {
+      "do_not_advance_on_ambiguity": true,
+      "handle_idk_with_examples": true,
+      "resolve_contradictions_before_finalize": true,
+      "max_workflows_to_map": 3,
+      "prefer_current_process_over_future_ideal": true,
+      "no_solutioning_until_current_state_confirmed": true,
+      "always_capture_real_example": true,
+      "always_capture_exceptions": true
+    },
+    "scope_guardrails": {
+      "focus_on": [
+        "Current state: what actually happens today",
+        "Roles and handoffs",
+        "Inputs/outputs per step",
+        "Decisions and business rules (as currently practiced)",
+        "Exceptions, rework loops, and delays",
+        "Artifacts used today (forms, spreadsheets, emails, photos, reports)",
+        "Process measures (cycle time, lead time, error/rework, SLAs) as currently known"
+      ],
+      "explicitly_exclude": [
+        "Future-state redesign brainstorming (until after current state is confirmed)",
+        "Technical architecture decisions",
+        "Tool/vendor selection",
+        "Training and change management plans",
+        "Organizational politics or unrelated internal issues"
+      ]
+    }
+  },
+  "flow_sequence": [
+    {
+      "flow_id": "intake_sipoc_v1",
+      "file": "Flow_A_intake_sipoc_v1.json",
+      "entry_stage": "welcome",
+      "exit_stage": "end",
+      "transition_to": "current_state_mapping_v1"
+    },
+    {
+      "flow_id": "current_state_mapping_v1",
+      "file": "Flow_B_current_state_mapping_v1.json",
+      "entry_stage": "reality_checks",
+      "exit_stage": "end",
+      "transition_to": "outputs_v1"
+    },
+    {
+      "flow_id": "outputs_v1",
+      "file": "Flow_C_outputs_v1.json",
+      "entry_stage": "automation_fit_capture",
+      "exit_stage": "end",
+      "transition_to": null
+    }
+  ],
+  "notes": [
+    "The runner should merge all context.slots from all three flows",
+    "State is shared across all flows within a single session",
+    "Users can optionally skip Flow C if they only want current-state mapping without automation fit scoring"
+  ]
+}

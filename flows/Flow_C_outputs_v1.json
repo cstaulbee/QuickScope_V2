@@ -1,0 +1,162 @@
+{
+  "flow_id": "outputs_v1",
+  "version": "1.0.0",
+  "purpose": "Generate Mermaid diagrams, markdown summary, and optionally assess automation fit",
+  "global_rules": {
+    "tone": {
+      "style": "business-friendly",
+      "jargon_policy": "avoid_technical_terms"
+    }
+  },
+  "context": {
+    "slots": {
+      "automation_fit": {
+        "candidate_for_app": null,
+        "recommended_next_step": null,
+        "reasons_to_build": [],
+        "reasons_not_to_build": [],
+        "quick_wins_without_software": [],
+        "digitization_candidates": {
+          "workflows_to_digitize": [],
+          "highest_value_steps": [],
+          "automation_opportunities": []
+        }
+      },
+      "outputs": {
+        "human_readable": {
+          "sipoc_mermaid": null,
+          "swimlane_mermaid": null,
+          "current_state_summary_markdown": null
+        },
+        "ai_handoff": {
+          "process_model": null,
+          "app_candidate_inputs": null
+        }
+      }
+    }
+  },
+  "stages": [
+    {
+      "id": "automation_fit_capture",
+      "type": "questions",
+      "questions": [
+        {
+          "id": "candidate_for_app",
+          "ask": "Based on the current state, does it feel worth investing time to digitize this into an app workflow?",
+          "save_to": "automation_fit.candidate_for_app",
+          "clarify_if": [
+            {
+              "condition": "unclear_yes_no",
+              "follow_up": "Which is closer: not worth it, maybe, or definitely worth it?"
+            }
+          ]
+        },
+        {
+          "id": "reasons_to_build",
+          "ask": "If yes or maybe: what are the top reasons (reduce missed steps, faster turnaround, fewer errors, better visibility, compliance)?",
+          "save_to": "automation_fit.reasons_to_build"
+        },
+        {
+          "id": "reasons_not_to_build",
+          "ask": "What are the reasons NOT to build an app (too rare, too variable, mostly human judgment, change would be harder than benefit)?",
+          "save_to": "automation_fit.reasons_not_to_build"
+        },
+        {
+          "id": "quick_wins",
+          "ask": "What quick wins could improve things without new software (better checklist, simpler form, clarified ownership, template, small policy change)?",
+          "save_to": "automation_fit.quick_wins_without_software"
+        }
+      ],
+      "next": "automation_fit_action"
+    },
+    {
+      "id": "automation_fit_action",
+      "type": "action",
+      "action": "score_automation_and_select_digitization_candidates",
+      "save_to": "automation_fit.digitization_candidates",
+      "next": "automation_fit_recommendation"
+    },
+    {
+      "id": "automation_fit_recommendation",
+      "type": "action",
+      "action": "generate_recommended_next_step",
+      "save_to": "automation_fit.recommended_next_step",
+      "next": "outputs_generate"
+    },
+    {
+      "id": "outputs_generate",
+      "type": "action",
+      "action": "generate_human_and_ai_outputs",
+      "save_to": "outputs",
+      "next": "final_output"
+    },
+    {
+      "id": "final_output",
+      "type": "output",
+      "output_format": "current_state_discovery_pack",
+      "template": {
+        "human_readable": "{{outputs.human_readable}}",
+        "ai_handoff": "{{outputs.ai_handoff}}",
+        "automation_fit": "{{automation_fit}}"
+      },
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "type": "message",
+      "prompt": "Done. If you'd like, the next step is a separate 'app constraints & requirements' flow that uses this current-state pack as input."
+    }
+  ],
+  "actions": {
+    "score_automation_and_select_digitization_candidates": {
+      "description": "Score suitability for digitization using current-state signals (volume, variability, handoffs, wait states, error/rework, compliance). Identify candidate workflows/steps and opportunities."
+    },
+    "generate_recommended_next_step": {
+      "description": "Choose recommended_next_step: 'do_not_build_yet', 'improve_process_first', 'pilot_lightweight_tooling', or 'proceed_to_app_requirements_flow' with rationale."
+    },
+    "generate_human_and_ai_outputs": {
+      "description": "Generate Mermaid SIPOC and swimlane diagrams plus a markdown narrative. Generate AI handoff: process_model JSON and app_candidate_inputs for a downstream app-requirements flow."
+    }
+  },
+  "spec_output_schema": {
+    "current_state_discovery_pack": {
+      "human_readable": {
+        "sipoc_mermaid": "string",
+        "swimlane_mermaid": "string",
+        "current_state_summary_markdown": "string"
+      },
+      "ai_handoff": {
+        "process_model": {
+          "engagement": "object",
+          "process_profile": "object",
+          "scope": "object",
+          "sipoc": "object",
+          "reality_checks": "object",
+          "artifacts": "object",
+          "roles": "object",
+          "workflows": "object",
+          "process_parameters": "object",
+          "pain_points": "object",
+          "validation": "object"
+        },
+        "app_candidate_inputs": {
+          "workflows_to_digitize": ["string"],
+          "highest_value_steps": ["string"],
+          "data_elements": ["object"],
+          "status_model": "object",
+          "controls": ["object"],
+          "measures": ["object"],
+          "must_handle_scenarios": ["string"]
+        }
+      },
+      "automation_fit": {
+        "candidate_for_app": "boolean",
+        "recommended_next_step": "string",
+        "reasons_to_build": ["string"],
+        "reasons_not_to_build": ["string"],
+        "quick_wins_without_software": ["string"],
+        "digitization_candidates": "object"
+      }
+    }
+  }
+}

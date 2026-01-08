@@ -1,0 +1,571 @@
+---
+description: Common LangGraph patterns including ReAct, supervisor, and planning
+globs:
+  - "**/*.py"
+  - "**/graphs/**"
+  - "**/agents/**"
+---
+
+# LangGraph Common Patterns
+
+## ReAct Agent Pattern
+
+### Simple ReAct Agent
+```python
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import tool
+
+# Define tools
+@tool
+async def search_tool(query: str) -> str:
+    """Search for information."""
+    return await search_api(query)
+
+@tool
+async def calculator_tool(expression: str) -> float:
+    """Evaluate mathematical expression."""
+    return eval(expression)
+
+# Create ReAct agent
+tools = [search_tool, calculator_tool]
+
+agent = create_react_agent(
+    model=llm,
+    tools=tools,
+    checkpointer=checkpointer,
+)
+
+# Use with thread management
+config = {"configurable": {"thread_id": "session-123"}}
+result = await agent.ainvoke(
+    {"messages": [("user", "What is 15 * 27?")]},
+    config=config
+)
+```
+
+### Custom ReAct Implementation
+```python
+from typing import Literal
+from langgraph.types import Command
+
+class ReActState(TypedDict):
+    """ReAct agent state."""
+    messages: Annotated[list[BaseMessage], add_messages]
+    iterations: int
+    max_iterations: int
+
+async def reason_node(state: ReActState) -> dict:
+    """Reason about what to do next."""
+    messages = state["messages"]
+    
+    # LLM decides which tool to use
+    response = await llm_with_tools.ainvoke(messages)
+    
+    return {
+        "messages": [response],
+        "iterations": state["iterations"] + 1
+    }
+
+async def act_node(state: ReActState) -> dict:
+    """Execute tool calls."""
+    last_message = state["messages"][-1]
+    tool_calls = last_message.tool_calls
+    
+    # Execute all tool calls
+    tool_messages = []
+    for tool_call in tool_calls:
+        tool = tool_map[tool_call["name"]]
+        result = await tool.ainvoke(tool_call["args"])
+        tool_messages.append(
+            ToolMessage(
+                content=str(result),
+                tool_call_id=tool_call["id"]
+            )
+        )
+    
+    return {"messages": tool_messages}
+
+def should_continue(state: ReActState) -> Literal["act", "end"]:
+    """Decide whether to continue or end."""
+    last_message = state["messages"][-1]
+    
+    # Check iteration limit
+    if state["iterations"] >= state["max_iterations"]:
+        return "end"
+    
+    # Check if there are tool calls
+    if last_message.tool_calls:
+        return "act"
+    
+    return "end"
+
+# Build graph
+graph = StateGraph(ReActState)
+graph.add_node("reason", reason_node)
+graph.add_node("act", act_node)
+
+graph.add_edge(START, "reason")
+graph.add_conditional_edges("reason", should_continue, {
+    "act": "act",
+    "end": END
+})
+graph.add_edge("act", "reason")
+
+react_agent = graph.compile(checkpointer=checkpointer)
+```
+
+## Supervisor Pattern (Multi-Agent)
+
+### Supervisor with Specialized Workers
+```python
+class SupervisorState(TypedDict):
+    """State for supervisor-worker system."""
+    messages: Annotated[list[BaseMessage], add_messages]
+    next_worker: str
+    task_complete: bool
+
+# Specialized worker agents
+researcher_agent = create_react_agent(
+    llm, 
+    tools=[search_tool, scrape_tool],
+    name="researcher"
+)
+
+writer_agent = create_react_agent(
+    llm,
+    tools=[grammar_check_tool],
+    name="writer"
+)
+
+reviewer_agent = create_react_agent(
+    llm,
+    tools=[quality_check_tool],
+    name="reviewer"
+)
+
+async def supervisor_node(state: SupervisorState) -> dict:
+    """Supervisor decides which worker to use."""
+    messages = state["messages"]
+    
+    system_prompt = """You are a supervisor managing these workers:
+    - researcher: Gathers information from web and documents
+    - writer: Creates content and documentation
+    - reviewer: Checks quality and provides feedback
+    - FINISH: When task is complete
+    
+    Decide which worker should act next based on the current state.
+    """
+    
+    response = await supervisor_llm.ainvoke(
+        [SystemMessage(content=system_prompt)] + messages
+    )
+    
+    return {"next_worker": response.content.strip()}
+
+def route_supervisor(
+    state: SupervisorState
+) -> Literal["researcher", "writer", "reviewer", "end"]:
+    """Route to selected worker."""
+    next_worker = state["next_worker"].lower()
+    
+    if "finish" in next_worker:
+        return "end"
+    
+    if "research" in next_worker:
+        return "researcher"
+    
+    if "write" in next_worker:
+        return "writer"
+    
+    if "review" in next_worker:
+        return "reviewer"
+    
+    # Default to supervisor deciding again
+    return "supervisor"
+
+# Build supervisor graph
+graph = StateGraph(SupervisorState)
+
+# Add nodes
+graph.add_node("supervisor", supervisor_node)
+graph.add_node("researcher", researcher_agent)
+graph.add_node("writer", writer_agent)
+graph.add_node("reviewer", reviewer_agent)
+
+# Add edges
+graph.add_edge(START, "supervisor")
+graph.add_conditional_edges("supervisor", route_supervisor)
+
+# Workers report back to supervisor
+graph.add_edge("researcher", "supervisor")
+graph.add_edge("writer", "supervisor")
+graph.add_edge("reviewer", "supervisor")
+
+supervisor_graph = graph.compile(checkpointer=checkpointer)
+```
+
+## Planning and Execution Pattern
+
+### Plan-Execute-Verify
+```python
+class PlanExecuteState(TypedDict):
+    """State for planning and execution."""
+    messages: Annotated[list[BaseMessage], add_messages]
+    plan: list[str]
+    current_step: int
+    step_results: dict[int, str]
+    verification_passed: bool
+
+async def planning_node(state: PlanExecuteState) -> dict:
+    """Create detailed execution plan."""
+    messages = state["messages"]
+    
+    planning_prompt = """Break down the user's request into numbered steps.
+    Each step should be:
+    1. Specific and actionable
+    2. Independent of other steps where possible
+    3. Include what tools/information are needed
+    
+    Output format:
+    1. [First step]
+    2. [Second step]
+    ...
+    """
+    
+    response = await planner_llm.ainvoke([
+        SystemMessage(content=planning_prompt),
+        *messages
+    ])
+    
+    # Parse plan from response
+    plan = parse_plan(response.content)
+    
+    return {
+        "plan": plan,
+        "current_step": 0,
+        "step_results": {}
+    }
+
+async def execution_node(state: PlanExecuteState) -> dict:
+    """Execute current plan step."""
+    step_idx = state["current_step"]
+    step = state["plan"][step_idx]
+    
+    # Execute step with appropriate agent/tools
+    result = await executor_agent.ainvoke({
+        "messages": [HumanMessage(content=f"Execute this step: {step}")]
+    })
+    
+    return {
+        "step_results": {step_idx: result["messages"][-1].content},
+        "current_step": step_idx + 1
+    }
+
+async def verification_node(state: PlanExecuteState) -> dict:
+    """Verify execution results."""
+    plan = state["plan"]
+    results = state["step_results"]
+    
+    verification_prompt = f"""
+    Plan steps:
+    {chr(10).join(f"{i+1}. {step}" for i, step in enumerate(plan))}
+    
+    Results:
+    {chr(10).join(f"Step {i+1}: {result}" for i, result in results.items())}
+    
+    Verify:
+    1. Were all steps completed?
+    2. Are results satisfactory?
+    3. Is additional work needed?
+    
+    Output: PASS or FAIL with explanation
+    """
+    
+    response = await verifier_llm.ainvoke([
+        SystemMessage(content=verification_prompt)
+    ])
+    
+    passed = "PASS" in response.content.upper()
+    
+    return {"verification_passed": passed}
+
+def should_continue_execution(
+    state: PlanExecuteState
+) -> Literal["execute", "verify", "replan"]:
+    """Decide next step in plan-execute cycle."""
+    # All steps executed - verify
+    if state["current_step"] >= len(state["plan"]):
+        return "verify"
+    
+    # Continue execution
+    return "execute"
+
+def after_verification(
+    state: PlanExecuteState
+) -> Literal["finish", "replan"]:
+    """Route after verification."""
+    if state["verification_passed"]:
+        return "finish"
+    return "replan"
+
+# Build plan-execute graph
+graph = StateGraph(PlanExecuteState)
+
+graph.add_node("plan", planning_node)
+graph.add_node("execute", execution_node)
+graph.add_node("verify", verification_node)
+
+graph.add_edge(START, "plan")
+graph.add_conditional_edges("plan", lambda s: "execute")
+graph.add_conditional_edges("execute", should_continue_execution, {
+    "execute": "execute",
+    "verify": "verify"
+})
+graph.add_conditional_edges("verify", after_verification, {
+    "finish": END,
+    "replan": "plan"
+})
+
+plan_execute_graph = graph.compile(checkpointer=checkpointer)
+```
+
+## Parallel Execution Pattern
+
+### Fan-out / Fan-in
+```python
+from langgraph.types import Send
+
+class ParallelState(TypedDict):
+    """State for parallel execution."""
+    tasks: list[dict]
+    results: list[dict]
+
+def fanout_node(state: ParallelState) -> list[Send]:
+    """Dispatch parallel tasks."""
+    tasks = state["tasks"]
+    
+    # Send each task to worker node
+    return [
+        Send("worker", {"task": task})
+        for task in tasks
+    ]
+
+async def worker_node(state: dict) -> dict:
+    """Process individual task."""
+    task = state["task"]
+    
+    # Process task
+    result = await process_task(task)
+    
+    return {"result": result}
+
+def aggregate_node(state: ParallelState) -> dict:
+    """Combine results from parallel workers."""
+    # All worker results are in state["results"]
+    combined = merge_results(state["results"])
+    
+    return {"final_result": combined}
+
+# Build parallel graph
+graph = StateGraph(ParallelState)
+
+graph.add_node("fanout", fanout_node)
+graph.add_node("worker", worker_node)
+graph.add_node("aggregate", aggregate_node)
+
+graph.add_edge(START, "fanout")
+graph.add_edge("fanout", "worker")
+graph.add_edge("worker", "aggregate")
+graph.add_edge("aggregate", END)
+
+parallel_graph = graph.compile()
+```
+
+## Human-in-the-Loop Pattern
+
+### Approval Workflow
+```python
+from langgraph.types import interrupt
+
+class ApprovalState(TypedDict):
+    """State for approval workflow."""
+    messages: Annotated[list[BaseMessage], add_messages]
+    proposed_action: dict
+    approved: bool
+    feedback: str | None
+
+async def propose_action_node(state: ApprovalState) -> dict:
+    """Generate proposed action."""
+    messages = state["messages"]
+    
+    response = await llm.ainvoke(messages)
+    
+    # Extract proposed action
+    action = parse_action(response.content)
+    
+    return {"proposed_action": action}
+
+def approval_node(state: ApprovalState) -> dict:
+    """Pause for human approval."""
+    action = state["proposed_action"]
+    
+    # Interrupt execution for human input
+    human_input = interrupt({
+        "action": action,
+        "message": "Please review and approve/reject this action"
+    })
+    
+    return {
+        "approved": human_input.get("approved", False),
+        "feedback": human_input.get("feedback")
+    }
+
+async def execute_node(state: ApprovalState) -> dict:
+    """Execute approved action."""
+    action = state["proposed_action"]
+    
+    result = await execute_action(action)
+    
+    return {"messages": [AIMessage(content=f"Executed: {result}")]}
+
+async def revise_node(state: ApprovalState) -> dict:
+    """Revise action based on feedback."""
+    feedback = state["feedback"]
+    
+    # Incorporate feedback
+    messages = state["messages"] + [
+        HumanMessage(content=f"Feedback: {feedback}")
+    ]
+    
+    response = await llm.ainvoke(messages)
+    
+    return {"messages": [response]}
+
+def route_after_approval(
+    state: ApprovalState
+) -> Literal["execute", "revise"]:
+    """Route based on approval decision."""
+    if state["approved"]:
+        return "execute"
+    return "revise"
+
+# Build approval graph
+graph = StateGraph(ApprovalState)
+
+graph.add_node("propose", propose_action_node)
+graph.add_node("approval", approval_node)
+graph.add_node("execute", execute_node)
+graph.add_node("revise", revise_node)
+
+graph.add_edge(START, "propose")
+graph.add_edge("propose", "approval")
+graph.add_conditional_edges("approval", route_after_approval, {
+    "execute": "execute",
+    "revise": "revise"
+})
+graph.add_edge("execute", END)
+graph.add_edge("revise", "propose")
+
+approval_graph = graph.compile(checkpointer=checkpointer)
+```
+
+## Hierarchical Agent Pattern
+
+### Multi-Level Task Delegation
+```python
+class HierarchicalState(TypedDict):
+    """State for hierarchical agents."""
+    task: str
+    subtasks: list[dict]
+    subtask_results: dict[str, Any]
+    final_result: str | None
+
+async def decompose_node(state: HierarchicalState) -> dict:
+    """Break task into subtasks."""
+    task = state["task"]
+    
+    response = await manager_llm.ainvoke([
+        SystemMessage(content="Break this task into subtasks"),
+        HumanMessage(content=task)
+    ])
+    
+    subtasks = parse_subtasks(response.content)
+    
+    return {"subtasks": subtasks}
+
+async def delegate_node(state: HierarchicalState) -> dict:
+    """Delegate subtasks to specialized agents."""
+    subtasks = state["subtasks"]
+    results = {}
+    
+    for subtask in subtasks:
+        agent = select_agent(subtask["type"])
+        result = await agent.ainvoke({"task": subtask["description"]})
+        results[subtask["id"]] = result
+    
+    return {"subtask_results": results}
+
+async def synthesize_node(state: HierarchicalState) -> dict:
+    """Combine subtask results."""
+    results = state["subtask_results"]
+    
+    synthesis_prompt = f"""
+    Original task: {state['task']}
+    
+    Subtask results:
+    {format_results(results)}
+    
+    Synthesize a final answer.
+    """
+    
+    response = await synthesizer_llm.ainvoke([
+        HumanMessage(content=synthesis_prompt)
+    ])
+    
+    return {"final_result": response.content}
+
+# Build hierarchical graph
+graph = StateGraph(HierarchicalState)
+graph.add_node("decompose", decompose_node)
+graph.add_node("delegate", delegate_node)
+graph.add_node("synthesize", synthesize_node)
+
+graph.add_edge(START, "decompose")
+graph.add_edge("decompose", "delegate")
+graph.add_edge("delegate", "synthesize")
+graph.add_edge("synthesize", END)
+
+hierarchical_graph = graph.compile()
+```
+
+## Pattern Selection Guide
+
+**Use ReAct when:**
+- Single agent with tools
+- Iterative reasoning needed
+- Simple tool selection
+
+**Use Supervisor when:**
+- Multiple specialized agents
+- Dynamic task routing
+- Agent coordination needed
+
+**Use Plan-Execute when:**
+- Complex multi-step tasks
+- Verification important
+- Clear planning phase
+
+**Use Parallel when:**
+- Independent subtasks
+- Speed is critical
+- Tasks can run concurrently
+
+**Use HITL when:**
+- High-stakes decisions
+- Human oversight required
+- Approval workflows
+
+**Use Hierarchical when:**
+- Complex task decomposition
+- Multi-level delegation
+- Specialized sub-agents

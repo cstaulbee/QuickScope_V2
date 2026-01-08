@@ -1,0 +1,240 @@
+---
+description: LangGraph project essential rules and quick reference
+alwaysApply: true
+---
+
+# LangGraph Project - Essential Rules
+
+> This is the main rules file. Specialized rules are in `.cursor/rules/` directory.
+
+## What is LangGraph?
+
+LangGraph is a low-level orchestration framework for building stateful, multi-agent AI workflows with:
+- **Durable execution** - Persist through failures with checkpoints
+- **State management** - Share data across nodes automatically
+- **Conditional logic** - Dynamic routing based on state
+- **Human-in-the-loop** - Pause for approval/input
+- **Streaming** - Real-time updates during execution
+
+## Core Principles
+
+1. **Minimal state** - Only persist what's needed across nodes
+2. **Single responsibility** - Each node does one thing well
+3. **Explicit behavior** - No magic, clear control flow
+4. **Error handling** - Always handle failures gracefully
+5. **Type safety** - Use TypedDict or Pydantic for state
+6. **Cycle protection** - Hard limits on loops
+
+## Quick Start Template
+
+```python
+from langgraph.graph import StateGraph, START, END
+from typing import TypedDict, Annotated
+from langgraph.graph.message import add_messages
+
+# 1. Define State
+class AgentState(TypedDict):
+    messages: Annotated[list, add_messages]
+    current_step: int
+    max_steps: int
+
+# 2. Create Nodes
+async def process_node(state: AgentState) -> dict:
+    """Process with proper error handling."""
+    try:
+        result = await llm.ainvoke(state["messages"])
+        return {"messages": [result]}
+    except Exception as e:
+        return {"error": str(e)}
+
+# 3. Build Graph
+graph = StateGraph(AgentState)
+graph.add_node("process", process_node)
+graph.add_edge(START, "process")
+graph.add_edge("process", END)
+
+# 4. Compile
+compiled = graph.compile(checkpointer=checkpointer)
+
+# 5. Execute
+result = await compiled.ainvoke({"messages": ["input"], "max_steps": 10})
+```
+
+## Essential Patterns
+
+### State Definition
+```python
+# ✅ GOOD: Minimal, typed
+class MyState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+    error: str | None
+
+# ❌ BAD: Bloated, untyped
+class BadState(TypedDict):
+    everything: dict  # Too generic
+    temp: str  # Transient data
+```
+
+### Node Implementation
+```python
+# ✅ GOOD: Single responsibility, error handling
+async def my_node(state: MyState) -> dict:
+    try:
+        result = await operation()
+        return {"result": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ❌ BAD: Multiple responsibilities, no error handling
+def bad_node(state: dict) -> dict:
+    do_many_things(state)  # No error handling
+    return state
+```
+
+### Cycle Protection
+```python
+# ✅ ALWAYS: Implement hard stops
+def router(state: MyState) -> str:
+    if state["current_step"] >= state["max_steps"]:
+        return "end"
+    if state["retry_count"] > 3:
+        return "end"
+    return "continue"
+```
+
+## Project Structure
+
+```
+project/
+├── .cursor/
+│   └── rules/              # ← Specialized rules here
+│       ├── langgraph-core.mdc
+│       ├── langgraph-error-handling.mdc
+│       ├── langgraph-testing.mdc
+│       ├── langgraph-deployment.mdc
+│       └── langgraph-patterns.mdc
+├── src/
+│   ├── graphs/             # Graph definitions
+│   ├── nodes/              # Node implementations
+│   ├── state/              # State schemas
+│   └── tools/              # Custom tools
+├── tests/                  # Test files
+├── langgraph.json          # Deployment config
+└── pyproject.toml
+```
+
+## When to Reference Specialized Rules
+
+**Reference `langgraph-core.mdc` when:**
+- Working with state definitions
+- Creating nodes
+- Adding edges or routing
+- Basic graph construction
+
+**Reference `langgraph-error-handling.mdc` when:**
+- Implementing error handling
+- Adding retry logic
+- Creating fallback mechanisms
+- Handling failures
+
+**Reference `langgraph-testing.mdc` when:**
+- Writing tests
+- Mocking LLMs or APIs
+- Creating fixtures
+- Testing graphs end-to-end
+
+**Reference `langgraph-deployment.mdc` when:**
+- Configuring for production
+- Setting up checkpointers
+- Implementing caching
+- Adding observability
+
+**Reference `langgraph-patterns.mdc` when:**
+- Building ReAct agents
+- Creating supervisor systems
+- Implementing plan-execute
+- Adding human-in-the-loop
+
+## Critical Rules Summary
+
+### State Management
+- ✅ Keep minimal (only persistent data)
+- ✅ Use TypedDict or Pydantic
+- ✅ Reducers only for accumulation
+- ❌ No transient values in state
+
+### Nodes
+- ✅ Single responsibility
+- ✅ Type hints everywhere
+- ✅ Async for I/O, sync for CPU
+- ✅ Error handling with try/except
+- ❌ No "god nodes"
+
+### Edges
+- ✅ Simple for linear flow
+- ✅ Conditional for dynamic routing
+- ✅ Routing functions are simple
+- ❌ No LLM calls in routing
+- ❌ No unbounded cycles
+
+### Error Handling
+- ✅ Categorize errors (transient, permanent)
+- ✅ Retry with exponential backoff
+- ✅ Set retry limits
+- ❌ Never silently ignore errors
+
+### Testing
+- ✅ Mock external dependencies
+- ✅ Test nodes in isolation
+- ✅ Test full graph flows
+- ✅ Test error recovery
+
+## Essential Imports
+
+```python
+# Core LangGraph
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import Command, Send, interrupt
+from langgraph.checkpoint.postgres import PostgresSaver
+
+# State Management
+from typing import TypedDict, Annotated, Literal
+from langgraph.graph.message import add_messages
+
+# LangChain
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.tools import tool
+```
+
+## Common Commands
+
+```bash
+# Development
+langgraph dev                    # Start dev server
+langgraph test                   # Run tests
+
+# Deployment
+langgraph build                  # Build Docker image
+langgraph up                     # Start with Docker Compose
+```
+
+## Anti-Patterns to Avoid
+
+❌ **God Nodes** - Nodes doing multiple things
+❌ **Untyped State** - Using `dict` instead of TypedDict
+❌ **Unbounded Cycles** - No max iterations
+❌ **Silent Errors** - `except: pass`
+❌ **Bloated State** - Storing temporary values
+❌ **Complex Routing** - LLM calls in routing functions
+
+## Getting Help
+
+- **Read specialized rules** when working on specific features
+- **Check examples** in each rule file
+- **Test incrementally** - build nodes, then graph, then test
+- **Use LangGraph Studio** for visual debugging
+
+---
+
+Remember: LangGraph is about building **reliable, observable, and maintainable** agent systems.
+Focus on clarity, explicit behavior, and robust error handling.

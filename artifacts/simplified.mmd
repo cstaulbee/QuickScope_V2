@@ -1,0 +1,45 @@
+flowchart TD
+
+  A([Start: Client intends to sell investment property])
+
+  A --> B[Collect basic exchange info
+  • Client entity
+  • Property being sold
+  • Expected close date]
+
+  B --> C{Decision: Is a 1031 exchange desired?}
+
+  C -- No --> Z([End: Standard sale process])
+  C -- Yes --> D[Engage Qualified Intermediary
+  • Open exchange file
+  • Sign exchange agreement]
+
+  D --> E[Coordinate sale closing
+  • Assign contract to QI
+  • Provide escrow instructions]
+
+  E --> F[Close sale of relinquished property
+  • Proceeds sent to QI
+  • Exchange clock starts]
+
+  F --> G[Identify replacement property options
+  • One or more candidates
+  • Client submits identification]
+
+  G --> H{Decision: Identification submitted on time?}
+
+  H -- No --> X([End: Exchange fails])
+  H -- Yes --> I[Validate identification
+  • Matches requirements
+  • Confirm receipt]
+
+  I --> J[Enter purchase contract for replacement property]
+
+  J --> K[Coordinate replacement closing
+  • Assign contract to QI
+  • Prepare funding instructions]
+
+  K --> L[Close replacement property
+  • QI releases funds]
+
+  L --> M([End: Exchange completed and documented])

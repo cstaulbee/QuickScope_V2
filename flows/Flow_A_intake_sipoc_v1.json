@@ -1,0 +1,317 @@
+{
+  "flow_id": "intake_sipoc_v1",
+  "version": "1.0.0",
+  "purpose": "Capture engagement context, process profile, scope, and high-level SIPOC diagram",
+  "global_rules": {
+    "tone": {
+      "style": "business-friendly",
+      "jargon_policy": "avoid_technical_terms",
+      "question_style": "one_question_at_a_time",
+      "use_examples": true,
+      "confirm_key_decisions": true
+    },
+    "conversation_policies": {
+      "do_not_advance_on_ambiguity": true,
+      "handle_idk_with_examples": true,
+      "resolve_contradictions_before_finalize": true,
+      "prefer_current_process_over_future_ideal": true,
+      "no_solutioning_until_current_state_confirmed": true,
+      "always_capture_real_example": true
+    }
+  },
+  "context": {
+    "slots": {
+      "engagement": {
+        "process_name": null,
+        "organization_type": null,
+        "industry": null,
+        "participants_present": [],
+        "primary_sme_role": null,
+        "discovery_format": null,
+        "timebox_minutes": null
+      },
+      "process_profile": {
+        "process_type": null,
+        "locations_involved": [],
+        "frequency": null,
+        "volume": {
+          "avg_per_period": null,
+          "period": null,
+          "peak_per_period": null,
+          "peak_period_description": null
+        },
+        "variability": null,
+        "seasonality": null,
+        "typical_record_identifier": null
+      },
+      "scope": {
+        "value_statement": null,
+        "start_trigger": null,
+        "end_condition": null,
+        "in_scope": [],
+        "out_of_scope": [],
+        "customers_or_recipients": [],
+        "upstream_dependencies": [],
+        "downstream_dependencies": []
+      },
+      "sipoc": {
+        "suppliers": [],
+        "inputs": [],
+        "process_high_level_steps": [],
+        "outputs": [],
+        "customers": [],
+        "assumptions": []
+      }
+    }
+  },
+  "stages": [
+    {
+      "id": "welcome",
+      "type": "message",
+      "prompt": "I'm going to capture how the process works today, end-to-end. I'll ask one question at a time and use real examples. Let's start with some context.",
+      "next": "engagement_context"
+    },
+    {
+      "id": "engagement_context",
+      "type": "questions",
+      "questions": [
+        {
+          "id": "process_name",
+          "ask": "What do you call this process internally?",
+          "save_to": "engagement.process_name",
+          "clarify_if": [
+            {
+              "condition": "empty_or_too_short",
+              "follow_up": "What's a common phrase people use when they talk about this work?"
+            }
+          ]
+        },
+        {
+          "id": "organization_type",
+          "ask": "What kind of organization is this (in one sentence)?",
+          "save_to": "engagement.organization_type"
+        },
+        {
+          "id": "industry",
+          "ask": "What industry is this in?",
+          "save_to": "engagement.industry"
+        },
+        {
+          "id": "participants_present",
+          "ask": "Who is here (roles are fine), and which role knows the process best?",
+          "save_to": "engagement.participants_present"
+        },
+        {
+          "id": "primary_sme_role",
+          "ask": "What role are you answering from today?",
+          "save_to": "engagement.primary_sme_role"
+        },
+        {
+          "id": "discovery_format",
+          "ask": "Is this a 1:1 interview, or do we have multiple roles present?",
+          "save_to": "engagement.discovery_format",
+          "clarify_if": [
+            {
+              "condition": "ambiguous_or_both_mentioned",
+              "follow_up": "To clarify: are you answering as a single expert, or is this a group discussion?"
+            }
+          ],
+          "accept_as_valid": [
+            "1:1",
+            "one-on-one",
+            "single expert",
+            "just me",
+            "solo",
+            "group",
+            "multiple people",
+            "multiple roles",
+            "team"
+          ]
+        },
+        {
+          "id": "timebox_minutes",
+          "ask": "How much time do we have today (roughly)?",
+          "save_to": "engagement.timebox_minutes",
+          "clarify_if": [
+            {
+              "condition": "not_a_number",
+              "follow_up": "A rough number is fine (like 30, 60, 90)."
+            }
+          ]
+        }
+      ],
+      "next": "process_profile"
+    },
+    {
+      "id": "process_profile",
+      "type": "questions",
+      "questions": [
+        {
+          "id": "process_type",
+          "ask": "Which best describes this process today: knowledge work, field/service work, manufacturing/physical flow, or a mix?",
+          "save_to": "process_profile.process_type",
+          "clarify_if": [
+            {
+              "condition": "vague",
+              "follow_up": "Which is closer: mostly emails/systems, mostly on-site work, or mostly moving/transforming physical items?"
+            }
+          ]
+        },
+        {
+          "id": "frequency_and_volume",
+          "ask": "How often does this process happen? Please give me both the frequency and a rough number—for example: 'about 5 times per day' or '20-30 times per month'.",
+          "save_to": "process_profile.frequency",
+          "clarify_if": [
+            {
+              "condition": "vague_or_no_number",
+              "follow_up": "To help me understand the volume: roughly how many times does it happen per day, week, or month?"
+            },
+            {
+              "condition": "has_number_but_no_period",
+              "follow_up": "Just to clarify: is that per day, per week, or per month?"
+            }
+          ],
+          "parse_rules": {
+            "extract_volume_to": "process_profile.volume.avg_per_period",
+            "extract_period_to": "process_profile.volume.period",
+            "note": "If user says 'daily' or 'weekly' but no number, prompt for volume. If user gives number with period, parse both."
+          }
+        },
+        {
+          "id": "variability",
+          "ask": "Is it mostly the same every time, or does it vary a lot depending on the situation?",
+          "save_to": "process_profile.variability",
+          "clarify_if": [
+            {
+              "condition": "vague",
+              "follow_up": "Which is closer: 80% repeatable, or every case feels different?"
+            }
+          ]
+        },
+        {
+          "id": "locations_involved",
+          "ask": "Where does this process happen (office, field locations, plants/warehouses, multiple sites)?",
+          "save_to": "process_profile.locations_involved"
+        },
+        {
+          "id": "typical_record_identifier",
+          "ask": "When you refer to a specific instance, what identifier do people use (job number, ticket ID, PO, order number, address, etc.)?",
+          "save_to": "process_profile.typical_record_identifier",
+          "clarify_if": [
+            {
+              "condition": "empty_or_too_short",
+              "follow_up": "If you had to search for one, what would you type to find it?"
+            }
+          ]
+        }
+      ],
+      "next": "scope_define"
+    },
+    {
+      "id": "scope_define",
+      "type": "questions",
+      "questions": [
+        {
+          "id": "value_statement",
+          "ask": "In one sentence, what is the purpose of this process (the value it produces)?",
+          "save_to": "scope.value_statement",
+          "clarify_if": [
+            {
+              "condition": "vague",
+              "follow_up": "What would go wrong if this process didn't exist?"
+            }
+          ]
+        },
+        {
+          "id": "start_trigger",
+          "ask": "What event starts the process (what happens right before it begins)?",
+          "save_to": "scope.start_trigger",
+          "clarify_if": [
+            {
+              "condition": "vague",
+              "follow_up": "Give me a real example of the last time it started—what kicked it off?"
+            }
+          ]
+        },
+        {
+          "id": "end_condition",
+          "ask": "What does 'done' mean—how do you know the process is complete?",
+          "save_to": "scope.end_condition",
+          "clarify_if": [
+            {
+              "condition": "vague",
+              "follow_up": "What evidence proves it's finished (approval, delivery, payment, install complete, inspection passed, etc.)?"
+            }
+          ]
+        },
+        {
+          "id": "customers_or_recipients",
+          "ask": "Who receives the outcome (internal or external customers)?",
+          "save_to": "scope.customers_or_recipients"
+        },
+        {
+          "id": "in_scope",
+          "ask": "What must be included in scope for us to tell the true current story? (short bullets)",
+          "save_to": "scope.in_scope"
+        },
+        {
+          "id": "out_of_scope",
+          "ask": "What is clearly out of scope for this process map? (short bullets)",
+          "save_to": "scope.out_of_scope"
+        }
+      ],
+      "next": "sipoc_capture"
+    },
+    {
+      "id": "sipoc_capture",
+      "type": "questions",
+      "questions": [
+        {
+          "id": "sipoc_suppliers",
+          "ask": "Who supplies the key inputs needed to start and complete the process? (roles/teams/vendors are fine)",
+          "save_to": "sipoc.suppliers"
+        },
+        {
+          "id": "sipoc_inputs",
+          "ask": "What are the key inputs the process needs (information, materials, approvals, requests, files, etc.)?",
+          "save_to": "sipoc.inputs"
+        },
+        {
+          "id": "sipoc_high_level_steps",
+          "ask": "At a high level, what are the 5–9 major steps from start to finish? (rough is fine)",
+          "save_to": "sipoc.process_high_level_steps",
+          "clarify_if": [
+            {
+              "condition": "too_few_items",
+              "follow_up": "Can you expand that a bit—what's the missing middle between start and done?"
+            }
+          ]
+        },
+        {
+          "id": "sipoc_outputs",
+          "ask": "What are the outputs that come out at the end (deliverables, confirmations, shipments, reports, completed service, etc.)?",
+          "save_to": "sipoc.outputs"
+        },
+        {
+          "id": "sipoc_customers",
+          "ask": "Who consumes those outputs (who cares that it's done)?",
+          "save_to": "sipoc.customers"
+        }
+      ],
+      "next": "sipoc_confirm"
+    },
+    {
+      "id": "sipoc_confirm",
+      "type": "confirm",
+      "summary_template": "Process: {{engagement.process_name}}. Start: {{scope.start_trigger}}. End: {{scope.end_condition}}.\nSIPOC:\n- Suppliers: {{sipoc.suppliers}}\n- Inputs: {{sipoc.inputs}}\n- Steps: {{sipoc.process_high_level_steps}}\n- Outputs: {{sipoc.outputs}}\n- Customers: {{sipoc.customers}}",
+      "ask": "Is this accurate for current state?",
+      "on_yes": "end",
+      "on_no": "sipoc_capture"
+    },
+    {
+      "id": "end",
+      "type": "message",
+      "prompt": "Great! SIPOC captured. Ready to proceed to detailed workflow mapping in the next flow."
+    }
+  ]
+}

@@ -1,0 +1,347 @@
+---
+description: Error handling patterns and strategies for LangGraph
+globs:
+  - "**/*.py"
+  - "**/nodes/**"
+  - "**/utils/**"
+---
+
+# LangGraph Error Handling
+
+## Multi-Level Error Strategy
+
+### Level 1: Node-Level Error Handling
+```python
+async def resilient_node(state: AgentState) -> dict:
+    """Handle errors at node level with clear error types."""
+    try:
+        result = await potentially_failing_operation()
+        return {"result": result, "error": None}
+    
+    except TimeoutError as e:
+        # Transient failure - signal for retry
+        return {"error": f"RETRY: {str(e)}"}
+    
+    except AuthenticationError as e:
+        # User-fixable - pause for input
+        return {"error": f"USER_INPUT: {str(e)}"}
+    
+    except ValueError as e:
+        # Permanent failure - escalate
+        return {"error": f"FATAL: {str(e)}"}
+```
+
+### Level 2: Graph-Level Error Routing
+```python
+from typing import Literal
+
+def error_router(state: AgentState) -> Literal["retry", "escalate", "continue"]:
+    """Route based on error type and retry count."""
+    error = state.get("error")
+    
+    # No error - continue normally
+    if not error:
+        return "continue"
+    
+    # Transient error with retries remaining
+    if error.startswith("RETRY") and state["retry_count"] < 3:
+        return "retry"
+    
+    # User input needed
+    if error.startswith("USER_INPUT"):
+        return "pause_for_input"
+    
+    # Fatal or too many retries - escalate
+    return "escalate"
+
+# Add to graph
+graph.add_conditional_edges("process", error_router, {
+    "retry": "retry_handler",
+    "escalate": "human_escalation",
+    "continue": "next_step"
+})
+```
+
+### Level 3: Graceful Degradation
+```python
+def fallback_node(state: AgentState) -> dict:
+    """Provide fallback when primary path fails."""
+    return {
+        "result": get_cached_or_default_response(),
+        "degraded": True,
+        "error": None
+    }
+```
+
+## Error State Pattern
+
+### Error Tracking State
+```python
+from typing import TypedDict
+
+class ErrorTrackingState(TypedDict):
+    """State with comprehensive error tracking."""
+    messages: list[str]
+    errors: dict[str, str]  # tool_id -> error_message
+    error_counts: dict[str, int]  # error_type -> count
+    retry_count: int
+    last_error_time: float | None
+```
+
+### Error Categorization
+```python
+def categorize_error(error: str) -> str:
+    """Categorize errors for better handling."""
+    error_lower = error.lower()
+    
+    if "timeout" in error_lower or "timed out" in error_lower:
+        return "TIMEOUT"
+    
+    if "rate limit" in error_lower or "429" in error_lower:
+        return "RATE_LIMIT"
+    
+    if "auth" in error_lower or "401" in error_lower or "403" in error_lower:
+        return "AUTH"
+    
+    if "not found" in error_lower or "404" in error_lower:
+        return "NOT_FOUND"
+    
+    if "connection" in error_lower or "network" in error_lower:
+        return "CONNECTION"
+    
+    return "UNKNOWN"
+```
+
+### Error Collection Node
+```python
+def error_handler_node(state: ErrorTrackingState) -> dict:
+    """Process and categorize errors."""
+    errors = state.get("errors", {})
+    error_counts = state.get("error_counts", {})
+    
+    if not errors:
+        return {}
+    
+    # Categorize and count errors
+    for tool_id, error_msg in errors.items():
+        error_type = categorize_error(error_msg)
+        error_counts[error_type] = error_counts.get(error_type, 0) + 1
+    
+    # Create error summary
+    error_summary = f"Encountered {len(errors)} errors:\n"
+    error_summary += "\n".join(
+        f"- {tool}: {error}" for tool, error in errors.items()
+    )
+    
+    return {
+        "error_counts": error_counts,
+        "error_summary": error_summary
+    }
+```
+
+## Retry Strategies
+
+### Exponential Backoff
+```python
+import asyncio
+from datetime import datetime
+
+async def retry_with_backoff(
+    operation: callable,
+    max_retries: int = 3,
+    base_delay: float = 1.0
+) -> Any:
+    """Retry operation with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return await operation()
+        
+        except Exception as e:
+            if attempt == max_retries - 1:
+                # Last attempt - raise
+                raise
+            
+            # Calculate backoff delay
+            delay = base_delay * (2 ** attempt)
+            await asyncio.sleep(delay)
+            
+            # Log retry attempt
+            print(f"Retry {attempt + 1}/{max_retries} after {delay}s")
+```
+
+### Retry Node with State
+```python
+async def retry_node(state: AgentState) -> dict:
+    """Retry failed operation with backoff."""
+    retry_count = state.get("retry_count", 0)
+    last_error = state.get("error")
+    
+    # Increment retry counter
+    retry_count += 1
+    
+    # Exponential backoff
+    delay = 2 ** (retry_count - 1)
+    await asyncio.sleep(delay)
+    
+    try:
+        # Retry the operation
+        result = await perform_operation(state)
+        
+        # Success - reset retry count
+        return {
+            "result": result,
+            "retry_count": 0,
+            "error": None
+        }
+    
+    except Exception as e:
+        # Still failing
+        return {
+            "retry_count": retry_count,
+            "error": f"RETRY: {str(e)} (attempt {retry_count})"
+        }
+```
+
+## Error Recovery Patterns
+
+### Circuit Breaker Pattern
+```python
+from datetime import datetime, timedelta
+
+class CircuitBreaker:
+    """Prevent repeated calls to failing services."""
+    
+    def __init__(self, failure_threshold: int = 5, timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.timeout = timedelta(seconds=timeout)
+        self.failures = 0
+        self.last_failure_time = None
+        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+    
+    def call(self, func):
+        """Execute function with circuit breaker."""
+        # Check if circuit is open
+        if self.state == "OPEN":
+            if datetime.now() - self.last_failure_time > self.timeout:
+                self.state = "HALF_OPEN"
+            else:
+                raise Exception("Circuit breaker is OPEN")
+        
+        try:
+            result = func()
+            
+            # Success - reset if half open
+            if self.state == "HALF_OPEN":
+                self.state = "CLOSED"
+                self.failures = 0
+            
+            return result
+        
+        except Exception as e:
+            self.failures += 1
+            self.last_failure_time = datetime.now()
+            
+            # Open circuit if threshold reached
+            if self.failures >= self.failure_threshold:
+                self.state = "OPEN"
+            
+            raise e
+```
+
+### Compensating Transactions
+```python
+async def transaction_node(state: AgentState) -> dict:
+    """Execute operation with rollback capability."""
+    checkpoint = create_checkpoint(state)
+    
+    try:
+        # Perform operation
+        result = await risky_operation(state)
+        return {"result": result, "checkpoint": None}
+    
+    except Exception as e:
+        # Rollback to checkpoint
+        rollback_state = restore_checkpoint(checkpoint)
+        
+        return {
+            "error": f"Transaction failed: {str(e)}",
+            "state": rollback_state,
+            "rolled_back": True
+        }
+```
+
+## Monitoring and Alerting
+
+### Error Logging
+```python
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+def log_error(
+    node_name: str,
+    error: Exception,
+    state: dict,
+    severity: str = "ERROR"
+) -> None:
+    """Comprehensive error logging."""
+    logger.log(
+        getattr(logging, severity),
+        f"[{node_name}] {type(error).__name__}: {str(error)}",
+        extra={
+            "node": node_name,
+            "error_type": type(error).__name__,
+            "state_snapshot": sanitize_state(state),
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
+```
+
+### Error Metrics
+```python
+from collections import defaultdict
+
+class ErrorMetrics:
+    """Track error metrics for monitoring."""
+    
+    def __init__(self):
+        self.error_counts = defaultdict(int)
+        self.error_rates = defaultdict(list)
+    
+    def record_error(self, error_type: str, timestamp: float):
+        """Record an error occurrence."""
+        self.error_counts[error_type] += 1
+        self.error_rates[error_type].append(timestamp)
+    
+    def get_error_rate(self, error_type: str, window_seconds: int = 60) -> float:
+        """Calculate error rate over time window."""
+        now = datetime.now().timestamp()
+        recent_errors = [
+            ts for ts in self.error_rates[error_type]
+            if now - ts < window_seconds
+        ]
+        return len(recent_errors) / window_seconds
+```
+
+## Best Practices
+
+### Error Handling Checklist
+- ✅ Categorize errors by type (transient, permanent, user-fixable)
+- ✅ Implement retry logic with exponential backoff
+- ✅ Set maximum retry limits to prevent infinite loops
+- ✅ Log errors with context for debugging
+- ✅ Use circuit breakers for unstable services
+- ✅ Provide graceful degradation fallbacks
+- ✅ Never silently ignore errors
+- ✅ Track error metrics for monitoring
+- ✅ Clear error messages that are actionable
+
+### Anti-Patterns to Avoid
+- ❌ Catch-all exception handlers: `except Exception: pass`
+- ❌ Hiding errors with default values without logging
+- ❌ Infinite retry loops without limits
+- ❌ Generic error messages: "Something went wrong"
+- ❌ Not distinguishing between error types
+- ❌ Retrying permanent failures
+- ❌ No error tracking or metrics

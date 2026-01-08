@@ -1,0 +1,1275 @@
+{
+    "flow_id": "current_state_discovery_v1",
+    "version": "1.0.0",
+    "purpose": "Elicit a complete, validated current-state process model (industry-agnostic) that is both human-readable (diagrams) and machine-readable (structured workflow + parameters), and determine whether digitizing into an app workflow is worth pursuing.",
+    "global_rules": {
+      "tone": {
+        "style": "business-friendly",
+        "jargon_policy": "avoid_technical_terms",
+        "question_style": "one_question_at_a_time",
+        "use_examples": true,
+        "confirm_key_decisions": true
+      },
+      "conversation_policies": {
+        "do_not_advance_on_ambiguity": true,
+        "handle_idk_with_examples": true,
+        "resolve_contradictions_before_finalize": true,
+        "max_workflows_to_map": 3,
+        "prefer_current_process_over_future_ideal": true,
+        "no_solutioning_until_current_state_confirmed": true,
+        "always_capture_real_example": true,
+        "always_capture_exceptions": true
+      },
+      "scope_guardrails": {
+        "focus_on": [
+          "Current state: what actually happens today",
+          "Roles and handoffs",
+          "Inputs/outputs per step",
+          "Decisions and business rules (as currently practiced)",
+          "Exceptions, rework loops, and delays",
+          "Artifacts used today (forms, spreadsheets, emails, photos, reports)",
+          "Process measures (cycle time, lead time, error/rework, SLAs) as currently known"
+        ],
+        "explicitly_exclude": [
+          "Future-state redesign brainstorming (until after current state is confirmed)",
+          "Technical architecture decisions",
+          "Tool/vendor selection",
+          "Training and change management plans",
+          "Organizational politics or unrelated internal issues"
+        ],
+        "reminder": "The goal is a truthful, build-informative current-state model. If the user drifts into future improvements, gently redirect back to what happens today, then capture improvements as a postscript only after confirmation."
+      }
+    },
+    "context": {
+      "slots": {
+        "engagement": {
+          "process_name": null,
+          "organization_type": null,
+          "industry": null,
+          "participants_present": [],
+          "primary_sme_role": null,
+          "discovery_format": null,
+          "timebox_minutes": null
+        },
+        "process_profile": {
+          "process_type": null,
+          "locations_involved": [],
+          "frequency": null,
+          "volume": {
+            "avg_per_period": null,
+            "period": null,
+            "peak_per_period": null,
+            "peak_period_description": null
+          },
+          "variability": null,
+          "seasonality": null,
+          "typical_record_identifier": null
+        },
+        "scope": {
+          "value_statement": null,
+          "start_trigger": null,
+          "end_condition": null,
+          "in_scope": [],
+          "out_of_scope": [],
+          "customers_or_recipients": [],
+          "upstream_dependencies": [],
+          "downstream_dependencies": []
+        },
+        "sipoc": {
+          "suppliers": [],
+          "inputs": [],
+          "process_high_level_steps": [],
+          "outputs": [],
+          "customers": [],
+          "assumptions": []
+        },
+        "reality_checks": {
+          "cycle_time": {
+            "typical": null,
+            "best_case": null,
+            "worst_case": null
+          },
+          "lead_time": {
+            "typical": null,
+            "best_case": null,
+            "worst_case": null
+          },
+          "wait_states": [],
+          "error_and_rework": {
+            "common_error_types": [],
+            "rework_frequency": null,
+            "scrap_or_waste_notes": null
+          },
+          "service_levels": {
+            "slas_exist": null,
+            "sla_definitions": []
+          },
+          "compliance_safety_constraints": [],
+          "capacity_constraints": []
+        },
+        "artifacts": {
+          "systems_tools": [],
+          "documents_and_templates": [],
+          "spreadsheets": [
+            {
+              "name": null,
+              "purpose": null,
+              "key_columns_or_sections": []
+            }
+          ],
+          "communications": {
+            "common_emails_or_messages": [],
+            "handoff_channels": []
+          },
+          "files_media": {
+            "file_types": [],
+            "photos_video_used": null,
+            "where_stored_today": null
+          }
+        },
+        "roles": {
+          "observed_roles": [],
+          "role_definitions": [],
+          "handoffs": []
+        },
+        "workflows": {
+          "selected_workflows": [],
+          "maps": [
+            {
+              "workflow_id": null,
+              "workflow_name": null,
+              "trigger": null,
+              "start_condition": null,
+              "end_condition": null,
+              "lanes": [],
+              "steps": [],
+              "decisions": [],
+              "exceptions": [],
+              "wait_states": [],
+              "artifacts_touched": [],
+              "notes": []
+            }
+          ]
+        },
+        "workflow_capture_state": {
+          "active_workflow_id": null,
+          "active_step_index": 0,
+          "active_step_buffer": {
+            "description": null,
+            "owner_role": null,
+            "inputs": [],
+            "outputs": [],
+            "systems_tools_used": [],
+            "decision": null,
+            "wait_or_delay": null,
+            "common_exception": null
+          }
+        },
+        "process_parameters": {
+          "data_elements": [
+            {
+              "data_id": null,
+              "name": null,
+              "definition": null,
+              "example_value": null,
+              "kind": null,
+              "required_when": null,
+              "source_today": null,
+              "owner_role": null,
+              "validation_rules_today": [],
+              "privacy_sensitivity": null
+            }
+          ],
+          "status_model": {
+            "statuses": [],
+            "status_definitions": [],
+            "transitions": [
+              {
+                "from_status": null,
+                "to_status": null,
+                "who_can_move": [],
+                "conditions_required": [],
+                "common_reasons": []
+              }
+            ],
+            "done_definition": null
+          },
+          "controls": [
+            {
+              "control_id": null,
+              "type": null,
+              "where_in_process": null,
+              "what_it_prevents_or_detects": null,
+              "how_it_works_today": null,
+              "evidence_or_audit_trail": null
+            }
+          ],
+          "measures": [
+            {
+              "measure_id": null,
+              "name": null,
+              "why_it_matters": null,
+              "how_measured_today": null,
+              "target_or_expectation": null,
+              "where_data_lives_today": null
+            }
+          ],
+          "decision_rules": [
+            {
+              "rule_id": null,
+              "decision_point": null,
+              "rule_statement": null,
+              "who_decides": [],
+              "inputs_needed": [],
+              "examples": []
+            }
+          ]
+        },
+        "pain_points": {
+          "problems": [],
+          "top_bottlenecks": [],
+          "workarounds": [],
+          "impact": {
+            "cost": null,
+            "time": null,
+            "risk": null,
+            "customer_impact": null,
+            "employee_friction": null
+          }
+        },
+        "validation": {
+          "gaps": [],
+          "contradictions": [],
+          "must_handle_scenarios": []
+        },
+        "automation_fit": {
+          "candidate_for_app": null,
+          "recommended_next_step": null,
+          "reasons_to_build": [],
+          "reasons_not_to_build": [],
+          "quick_wins_without_software": [],
+          "digitization_candidates": {
+            "workflows_to_digitize": [],
+            "highest_value_steps": [],
+            "automation_opportunities": []
+          }
+        },
+        "outputs": {
+          "human_readable": {
+            "sipoc_mermaid": null,
+            "swimlane_mermaid": null,
+            "current_state_summary_markdown": null
+          },
+          "ai_handoff": {
+            "process_model": null,
+            "app_candidate_inputs": null
+          }
+        }
+      }
+    },
+    "stages": [
+      {
+        "id": "welcome",
+        "type": "message",
+        "prompt": "I’m going to capture how the process works today, end-to-end, including exceptions and delays. I’ll produce a clear diagram for humans and a structured model for an automation/build agent. I’ll ask one question at a time and use real examples."
+      },
+      {
+        "id": "engagement_context",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "process_name",
+            "ask": "What do you call this process internally?",
+            "save_to": "engagement.process_name",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "What’s a common phrase people use when they talk about this work?"
+              }
+            ]
+          },
+          {
+            "id": "organization_type",
+            "ask": "What kind of organization is this (in one sentence)?",
+            "save_to": "engagement.organization_type"
+          },
+          {
+            "id": "industry",
+            "ask": "What industry is this in?",
+            "save_to": "engagement.industry"
+          },
+          {
+            "id": "participants_present",
+            "ask": "Who is here (roles are fine), and which role knows the process best?",
+            "save_to": "engagement.participants_present"
+          },
+          {
+            "id": "primary_sme_role",
+            "ask": "What role are you answering from today?",
+            "save_to": "engagement.primary_sme_role"
+          },
+          {
+            "id": "discovery_format",
+            "ask": "Is this a 1:1 interview, or do we have multiple roles present?",
+            "save_to": "engagement.discovery_format",
+            "clarify_if": [
+              {
+                "condition": "unclear_yes_no",
+                "follow_up": "Which is closer: just one expert, or a group representing multiple steps?"
+              }
+            ]
+          },
+          {
+            "id": "timebox_minutes",
+            "ask": "How much time do we have today (roughly)?",
+            "save_to": "engagement.timebox_minutes",
+            "clarify_if": [
+              {
+                "condition": "not_a_number",
+                "follow_up": "A rough number is fine (like 30, 60, 90)."
+              }
+            ]
+          }
+        ],
+        "next": "process_profile"
+      },
+      {
+        "id": "process_profile",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "process_type",
+            "ask": "Which best describes this process today: knowledge work, field/service work, manufacturing/physical flow, or a mix?",
+            "save_to": "process_profile.process_type",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "Which is closer: mostly emails/systems, mostly on-site work, or mostly moving/transforming physical items?"
+              }
+            ]
+          },
+          {
+            "id": "frequency",
+            "ask": "How often does this process happen?",
+            "save_to": "process_profile.frequency",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "Which is closer: multiple times a day, daily, weekly, or monthly?"
+              }
+            ]
+          },
+          {
+            "id": "volume_avg",
+            "ask": "On average, how many times does it happen per period (day/week/month)?",
+            "save_to": "process_profile.volume.avg_per_period",
+            "clarify_if": [
+              {
+                "condition": "not_a_number",
+                "follow_up": "A rough estimate is fine. Is it closer to 1–10, 11–50, 51–200, or 200+ per period?"
+              }
+            ]
+          },
+          {
+            "id": "volume_period",
+            "ask": "What period does that number refer to (day, week, or month)?",
+            "save_to": "process_profile.volume.period"
+          },
+          {
+            "id": "variability",
+            "ask": "Is it mostly the same every time, or does it vary a lot depending on the situation?",
+            "save_to": "process_profile.variability",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "Which is closer: 80% repeatable, or every case feels different?"
+              }
+            ]
+          },
+          {
+            "id": "locations_involved",
+            "ask": "Where does this process happen (office, field locations, plants/warehouses, multiple sites)?",
+            "save_to": "process_profile.locations_involved"
+          },
+          {
+            "id": "typical_record_identifier",
+            "ask": "When you refer to a specific instance, what identifier do people use (job number, ticket ID, PO, order number, address, etc.)?",
+            "save_to": "process_profile.typical_record_identifier",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "If you had to search for one, what would you type to find it?"
+              }
+            ]
+          }
+        ],
+        "next": "scope_define"
+      },
+      {
+        "id": "scope_define",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "value_statement",
+            "ask": "In one sentence, what is the purpose of this process (the value it produces)?",
+            "save_to": "scope.value_statement",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "What would go wrong if this process didn’t exist?"
+              }
+            ]
+          },
+          {
+            "id": "start_trigger",
+            "ask": "What event starts the process (what happens right before it begins)?",
+            "save_to": "scope.start_trigger",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "Give me a real example of the last time it started—what kicked it off?"
+              }
+            ]
+          },
+          {
+            "id": "end_condition",
+            "ask": "What does ‘done’ mean—how do you know the process is complete?",
+            "save_to": "scope.end_condition",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "What evidence proves it’s finished (approval, delivery, payment, install complete, inspection passed, etc.)?"
+              }
+            ]
+          },
+          {
+            "id": "customers_or_recipients",
+            "ask": "Who receives the outcome (internal or external customers)?",
+            "save_to": "scope.customers_or_recipients"
+          },
+          {
+            "id": "in_scope",
+            "ask": "What must be included in scope for us to tell the true current story? (short bullets)",
+            "save_to": "scope.in_scope"
+          },
+          {
+            "id": "out_of_scope",
+            "ask": "What is clearly out of scope for this process map? (short bullets)",
+            "save_to": "scope.out_of_scope"
+          }
+        ],
+        "next": "sipoc_capture"
+      },
+      {
+        "id": "sipoc_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "sipoc_suppliers",
+            "ask": "Who supplies the key inputs needed to start and complete the process? (roles/teams/vendors are fine)",
+            "save_to": "sipoc.suppliers"
+          },
+          {
+            "id": "sipoc_inputs",
+            "ask": "What are the key inputs the process needs (information, materials, approvals, requests, files, etc.)?",
+            "save_to": "sipoc.inputs"
+          },
+          {
+            "id": "sipoc_high_level_steps",
+            "ask": "At a high level, what are the 5–9 major steps from start to finish? (rough is fine)",
+            "save_to": "sipoc.process_high_level_steps",
+            "clarify_if": [
+              {
+                "condition": "too_few_items",
+                "follow_up": "Can you expand that a bit—what’s the missing middle between start and done?"
+              }
+            ]
+          },
+          {
+            "id": "sipoc_outputs",
+            "ask": "What are the outputs that come out at the end (deliverables, confirmations, shipments, reports, completed service, etc.)?",
+            "save_to": "sipoc.outputs"
+          },
+          {
+            "id": "sipoc_customers",
+            "ask": "Who consumes those outputs (who cares that it’s done)?",
+            "save_to": "sipoc.customers"
+          }
+        ],
+        "next": "sipoc_confirm"
+      },
+      {
+        "id": "sipoc_confirm",
+        "type": "confirm",
+        "summary_template": "Process: {{engagement.process_name}}. Start: {{scope.start_trigger}}. End: {{scope.end_condition}}.\nSIPOC:\n- Suppliers: {{sipoc.suppliers}}\n- Inputs: {{sipoc.inputs}}\n- Steps: {{sipoc.process_high_level_steps}}\n- Outputs: {{sipoc.outputs}}\n- Customers: {{sipoc.customers}}",
+        "ask": "Is this accurate for current state?",
+        "on_yes": "reality_checks",
+        "on_no": "sipoc_capture"
+      },
+      {
+        "id": "reality_checks",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "cycle_time_typical",
+            "ask": "For one typical case, how long does the work time take (excluding waiting)?",
+            "save_to": "reality_checks.cycle_time.typical",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "Is it minutes, hours, days, or weeks?"
+              }
+            ]
+          },
+          {
+            "id": "lead_time_typical",
+            "ask": "From start trigger to done, how long does it typically take including waiting?",
+            "save_to": "reality_checks.lead_time.typical",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "Is it usually same-day, multi-day, or longer?"
+              }
+            ]
+          },
+          {
+            "id": "wait_states",
+            "ask": "Where does it usually wait or get stuck? List the top 2–5 waiting points.",
+            "save_to": "reality_checks.wait_states",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "If you had to pick one spot where things sit the longest, where is it?"
+              }
+            ]
+          },
+          {
+            "id": "errors_rework",
+            "ask": "What are the most common errors or rework loops (what gets redone, corrected, or returned)?",
+            "save_to": "reality_checks.error_and_rework.common_error_types"
+          },
+          {
+            "id": "slas_exist",
+            "ask": "Are there any deadlines or service expectations (formal or informal) people try to meet?",
+            "save_to": "reality_checks.service_levels.slas_exist",
+            "clarify_if": [
+              {
+                "condition": "unclear_yes_no",
+                "follow_up": "Which is closer: no real deadlines, or there are expectations like ‘within 24 hours’ or ‘by end of week’?"
+              }
+            ]
+          },
+          {
+            "id": "sla_definitions",
+            "ask": "If yes, what are the key expectations (examples are fine)?",
+            "save_to": "reality_checks.service_levels.sla_definitions"
+          },
+          {
+            "id": "compliance_safety",
+            "ask": "Are there compliance, safety, or legal constraints that shape how this is done today?",
+            "save_to": "reality_checks.compliance_safety_constraints"
+          },
+          {
+            "id": "capacity_constraints",
+            "ask": "What capacity constraints affect it (staffing, equipment availability, supplier delays, shift limits, etc.)?",
+            "save_to": "reality_checks.capacity_constraints"
+          }
+        ],
+        "next": "artifacts_inventory"
+      },
+      {
+        "id": "artifacts_inventory",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "systems_tools",
+            "ask": "What systems or tools are used today (software, machines, devices, portals, scanners, etc.)?",
+            "save_to": "artifacts.systems_tools"
+          },
+          {
+            "id": "documents_templates",
+            "ask": "What documents or templates are used (forms, checklists, PDFs, standard emails)?",
+            "save_to": "artifacts.documents_and_templates"
+          },
+          {
+            "id": "spreadsheets",
+            "ask": "Do you use any spreadsheets or shared trackers? If yes, what are the key columns/sections?",
+            "save_to": "artifacts.spreadsheets"
+          },
+          {
+            "id": "handoff_channels",
+            "ask": "How do handoffs happen today (email, phone, chat, paper, in-person, system assignment)?",
+            "save_to": "artifacts.communications.handoff_channels"
+          },
+          {
+            "id": "files_media",
+            "ask": "Do you use files/photos/videos? If yes, what types and where are they stored today?",
+            "save_to": "artifacts.files_media"
+          }
+        ],
+        "next": "pain_points_capture"
+      },
+      {
+        "id": "pain_points_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "problems",
+            "ask": "What are the biggest problems with how this works today? (short bullets)",
+            "save_to": "pain_points.problems",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "Where do people complain, redo work, or lose track of things?"
+              }
+            ]
+          },
+          {
+            "id": "top_bottlenecks",
+            "ask": "Where are the top 1–3 bottlenecks (the spots that limit speed or quality most)?",
+            "save_to": "pain_points.top_bottlenecks"
+          },
+          {
+            "id": "workarounds",
+            "ask": "What workarounds do people use to make it work anyway?",
+            "save_to": "pain_points.workarounds"
+          },
+          {
+            "id": "impact",
+            "ask": "What’s the impact of the problems (time lost, cost, risk, customer impact, employee frustration)?",
+            "save_to": "pain_points.impact"
+          }
+        ],
+        "next": "workflow_selection"
+      },
+      {
+        "id": "workflow_selection",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "select_workflows",
+            "ask": "Pick up to 3 real examples (variants) we should map end-to-end. What are they called and how do they differ?",
+            "save_to": "workflows.selected_workflows",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "Common options: typical case, urgent/rush case, and a problem case with rework. Which apply here?"
+              }
+            ]
+          }
+        ],
+        "next": "workflow_count_gate"
+      },
+      {
+        "id": "workflow_count_gate",
+        "type": "gate",
+        "criteria": [
+          { "slot": "workflows.selected_workflows", "min_items": 1, "required": true }
+        ],
+        "on_fail": "workflow_selection",
+        "on_pass": "workflow_init"
+      },
+      {
+        "id": "workflow_init",
+        "type": "action",
+        "action": "initialize_workflow_maps_from_selection",
+        "save_to": "workflows.maps",
+        "next": "workflow_walkthrough_driver"
+      },
+      {
+        "id": "workflow_walkthrough_driver",
+        "type": "loop",
+        "loop_purpose": "Capture each selected workflow variant with step-by-step detail using one question at a time.",
+        "prompt": "We’ll map the first example end-to-end. What is the trigger event that starts this specific example?",
+        "stop_condition": {
+          "description": "All selected workflows have been captured and confirmed (or user chooses to stop).",
+          "signal_slot": "workflows.maps"
+        },
+        "on_stop": "decision_rules_capture",
+        "next": "workflow_step_capture__step_description"
+      },
+      {
+        "id": "workflow_step_capture__step_description",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "step_description",
+            "ask": "What is the very first action that happens after the trigger (current state, not ideal future)?",
+            "save_to": "workflow_capture_state.active_step_buffer.description",
+            "clarify_if": [
+              {
+                "condition": "vague",
+                "follow_up": "What does someone actually do—call, check, enter, move, inspect, assign, approve, print, deliver?"
+              }
+            ]
+          }
+        ],
+        "next": "workflow_step_capture__owner"
+      },
+      {
+        "id": "workflow_step_capture__owner",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "step_owner",
+            "ask": "Who does that step (what role)?",
+            "save_to": "workflow_capture_state.active_step_buffer.owner_role",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "If multiple roles can do it, who usually does it today?"
+              }
+            ]
+          }
+        ],
+        "next": "workflow_step_capture__inputs"
+      },
+      {
+        "id": "workflow_step_capture__inputs",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "step_inputs",
+            "ask": "What do they need in order to do it (information, materials, approvals, tools, files)?",
+            "save_to": "workflow_capture_state.active_step_buffer.inputs"
+          }
+        ],
+        "next": "workflow_step_capture__outputs"
+      },
+      {
+        "id": "workflow_step_capture__outputs",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "step_outputs",
+            "ask": "What gets produced or changed by that step (updated info, a document, a part moved, a decision made, etc.)?",
+            "save_to": "workflow_capture_state.active_step_buffer.outputs"
+          }
+        ],
+        "next": "workflow_step_capture__systems"
+      },
+      {
+        "id": "workflow_step_capture__systems",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "step_systems",
+            "ask": "What tools/systems are used during that step (if any)?",
+            "save_to": "workflow_capture_state.active_step_buffer.systems_tools_used"
+          }
+        ],
+        "next": "workflow_step_capture__decision_wait_exception"
+      },
+      {
+        "id": "workflow_step_capture__decision_wait_exception",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "step_decision",
+            "ask": "Is there a decision here that changes what happens next? If yes, what is the decision in plain terms?",
+            "save_to": "workflow_capture_state.active_step_buffer.decision"
+          },
+          {
+            "id": "step_wait",
+            "ask": "Does it wait after this step? If yes, what does it wait for and how long is typical?",
+            "save_to": "workflow_capture_state.active_step_buffer.wait_or_delay"
+          },
+          {
+            "id": "step_exception",
+            "ask": "What’s the most common thing that goes wrong at this step, and what happens when it does?",
+            "save_to": "workflow_capture_state.active_step_buffer.common_exception"
+          }
+        ],
+        "next": "workflow_step_commit"
+      },
+      {
+        "id": "workflow_step_commit",
+        "type": "action",
+        "action": "commit_step_to_active_workflow",
+        "save_to": "workflows.maps",
+        "next": "workflow_next_step_or_end"
+      },
+      {
+        "id": "workflow_next_step_or_end",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "next_or_done",
+            "ask": "What happens next? If the process is complete at this point, say 'done' and describe what proves it’s done.",
+            "save_to": "validation.must_handle_scenarios",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "What is the next action someone takes—right after this step?"
+              }
+            ]
+          }
+        ],
+        "next": "workflow_progress_action"
+      },
+      {
+        "id": "workflow_progress_action",
+        "type": "action",
+        "action": "advance_or_close_workflow_based_on_response",
+        "save_to": "workflows.maps",
+        "next": "workflow_variant_confirm_or_continue"
+      },
+      {
+        "id": "workflow_variant_confirm_or_continue",
+        "type": "branch",
+        "branches": [
+          {
+            "when": { "action_result_equals": { "action": "advance_or_close_workflow_based_on_response", "value": "continue_same_workflow" } },
+            "next": "workflow_step_capture__step_description"
+          },
+          {
+            "when": { "action_result_equals": { "action": "advance_or_close_workflow_based_on_response", "value": "workflow_closed" } },
+            "next": "workflow_confirm"
+          }
+        ]
+      },
+      {
+        "id": "workflow_confirm",
+        "type": "confirm",
+        "summary_template": "I captured this workflow:\n- Trigger: {{workflows.maps[0].trigger}}\n- Steps count: {{workflows.maps[0].steps}}\n- End condition: {{workflows.maps[0].end_condition}}\n- Top exceptions: {{workflows.maps[0].exceptions}}\nIs the sequence accurate for how it works today?",
+        "ask": "Is that accurate?",
+        "on_yes": "workflow_next_variant_gate",
+        "on_no": "workflow_fixup"
+      },
+      {
+        "id": "workflow_fixup",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "workflow_fix",
+            "ask": "What should be corrected (missing steps, wrong order, wrong role, missing exception)?",
+            "save_to": "validation.gaps"
+          }
+        ],
+        "next": "workflow_fixup_action"
+      },
+      {
+        "id": "workflow_fixup_action",
+        "type": "action",
+        "action": "apply_workflow_corrections",
+        "save_to": "workflows.maps",
+        "next": "workflow_confirm"
+      },
+      {
+        "id": "workflow_next_variant_gate",
+        "type": "action",
+        "action": "activate_next_workflow_variant_or_finish",
+        "save_to": "workflows.maps",
+        "next": "workflow_next_variant_branch"
+      },
+      {
+        "id": "workflow_next_variant_branch",
+        "type": "branch",
+        "branches": [
+          {
+            "when": { "action_result_equals": { "action": "activate_next_workflow_variant_or_finish", "value": "next_variant_activated" } },
+            "next": "workflow_step_capture__step_description"
+          },
+          {
+            "when": { "action_result_equals": { "action": "activate_next_workflow_variant_or_finish", "value": "all_variants_done" } },
+            "next": "decision_rules_capture"
+          }
+        ]
+      },
+      {
+        "id": "decision_rules_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "decision_points",
+            "ask": "List the biggest decisions that change the path (approvals, priority, acceptance/rejection, pass/fail).",
+            "save_to": "process_parameters.decision_rules",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "Think: when does someone stop and decide which route to take?"
+              }
+            ]
+          }
+        ],
+        "next": "decision_rules_action"
+      },
+      {
+        "id": "decision_rules_action",
+        "type": "action",
+        "action": "normalize_and_expand_decision_rules",
+        "save_to": "process_parameters.decision_rules",
+        "next": "data_elements_derive"
+      },
+      {
+        "id": "data_elements_derive",
+        "type": "action",
+        "action": "derive_candidate_data_elements_from_workflows_and_artifacts",
+        "save_to": "process_parameters.data_elements",
+        "next": "data_elements_validate_loop_gate"
+      },
+      {
+        "id": "data_elements_validate_loop_gate",
+        "type": "gate",
+        "criteria": [
+          { "slot": "process_parameters.data_elements", "min_items": 5, "required": true }
+        ],
+        "on_fail": "data_elements_manual_prompt",
+        "on_pass": "data_elements_validate_loop"
+      },
+      {
+        "id": "data_elements_manual_prompt",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "manual_fields",
+            "ask": "Name the most important pieces of information people must capture or look up to complete the process (10–20 items).",
+            "save_to": "process_parameters.data_elements"
+          }
+        ],
+        "next": "data_elements_validate_loop"
+      },
+      {
+        "id": "data_elements_validate_loop",
+        "type": "loop",
+        "loop_purpose": "Validate each data element so it’s unambiguous and build-informative, without technical jargon.",
+        "prompt": "We’ll confirm the key pieces of information one by one so the model is unambiguous.",
+        "stop_condition": {
+          "description": "All candidate data elements are validated or intentionally discarded.",
+          "signal_slot": "process_parameters.data_elements"
+        },
+        "on_stop": "status_model_capture",
+        "next": "data_element_one_by_one"
+      },
+      {
+        "id": "data_element_one_by_one",
+        "type": "action",
+        "action": "select_next_data_element_for_validation",
+        "save_to": "process_parameters.data_elements",
+        "next": "data_element_questions"
+      },
+      {
+        "id": "data_element_questions",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "de_definition",
+            "ask": "For '{{process_parameters.data_elements[current].name}}', what does it mean in plain terms?",
+            "save_to": "process_parameters.data_elements[current].definition"
+          },
+          {
+            "id": "de_example",
+            "ask": "Give an example value for it.",
+            "save_to": "process_parameters.data_elements[current].example_value"
+          },
+          {
+            "id": "de_kind",
+            "ask": "Is it best described as: free text, number, date/time, yes/no, pick from a list, or an attached file?",
+            "save_to": "process_parameters.data_elements[current].kind"
+          },
+          {
+            "id": "de_required_when",
+            "ask": "When is it required (always, only for certain cases, only at a certain step)?",
+            "save_to": "process_parameters.data_elements[current].required_when"
+          },
+          {
+            "id": "de_source_today",
+            "ask": "Where does it come from today (entered by a person, pulled from a system, on a document, from a vendor, etc.)?",
+            "save_to": "process_parameters.data_elements[current].source_today"
+          },
+          {
+            "id": "de_owner_role",
+            "ask": "Who is responsible for it being correct (what role)?",
+            "save_to": "process_parameters.data_elements[current].owner_role"
+          },
+          {
+            "id": "de_validation",
+            "ask": "Are there any rules people use today to validate it (format, range, must match something, required attachment)?",
+            "save_to": "process_parameters.data_elements[current].validation_rules_today"
+          },
+          {
+            "id": "de_sensitivity",
+            "ask": "Is it sensitive (personal, financial, medical, legal, safety-critical)? If yes, what type?",
+            "save_to": "process_parameters.data_elements[current].privacy_sensitivity"
+          }
+        ],
+        "next": "data_element_commit"
+      },
+      {
+        "id": "data_element_commit",
+        "type": "action",
+        "action": "commit_validated_data_element",
+        "save_to": "process_parameters.data_elements",
+        "next": "data_elements_validate_loop"
+      },
+      {
+        "id": "status_model_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "statuses",
+            "ask": "What stages/statuses do people use today to describe progress (3–9 stages)?",
+            "save_to": "process_parameters.status_model.statuses"
+          },
+          {
+            "id": "done_definition",
+            "ask": "In one sentence: what does 'Done' mean in a way everyone agrees on?",
+            "save_to": "process_parameters.status_model.done_definition"
+          }
+        ],
+        "next": "status_transitions_capture"
+      },
+      {
+        "id": "status_transitions_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "transitions",
+            "ask": "What are the normal moves between statuses (for example: New → Scheduled → In Progress → Done)?",
+            "save_to": "process_parameters.status_model.transitions",
+            "clarify_if": [
+              {
+                "condition": "empty_or_too_short",
+                "follow_up": "List 3–7 common status changes people make."
+              }
+            ]
+          },
+          {
+            "id": "who_moves",
+            "ask": "Who is allowed to move work forward today (what roles), and what must be true before they do?",
+            "save_to": "process_parameters.status_model.transitions"
+          }
+        ],
+        "next": "controls_measures_capture"
+      },
+      {
+        "id": "controls_measures_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "controls",
+            "ask": "What prevents mistakes today (checklists, reviews, inspections, approvals, sign-offs, required fields, etc.)?",
+            "save_to": "process_parameters.controls"
+          },
+          {
+            "id": "measures",
+            "ask": "What does the business care about measuring for this process (speed, quality, cost, safety, customer satisfaction)?",
+            "save_to": "process_parameters.measures"
+          },
+          {
+            "id": "how_measured_today",
+            "ask": "How are those measures tracked today (where does the data live)?",
+            "save_to": "process_parameters.measures"
+          }
+        ],
+        "next": "scenarios_capture"
+      },
+      {
+        "id": "scenarios_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "must_handle_scenarios",
+            "ask": "Give me 8–15 real scenarios the current process must handle (include at least 3 problem scenarios). Short bullets are fine.",
+            "save_to": "validation.must_handle_scenarios",
+            "clarify_if": [
+              {
+                "condition": "too_few_items",
+                "follow_up": "Add a few more, including: a rush case, a missing info case, and a case that gets rejected and reworked."
+              }
+            ]
+          }
+        ],
+        "next": "consistency_checks"
+      },
+      {
+        "id": "consistency_checks",
+        "type": "action",
+        "action": "detect_gaps_and_contradictions",
+        "save_to": "validation",
+        "next": "consistency_gate"
+      },
+      {
+        "id": "consistency_gate",
+        "type": "gate",
+        "criteria": [
+          { "slot": "validation.contradictions", "max_items": 0, "required": true }
+        ],
+        "on_fail": "resolve_contradictions",
+        "on_pass": "current_state_confirm"
+      },
+      {
+        "id": "resolve_contradictions",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "resolve_contradictions",
+            "ask": "I found a few inconsistencies. Let’s resolve them one at a time: {{validation.contradictions}}. Which should be true for current state?",
+            "save_to": "validation.contradictions"
+          }
+        ],
+        "next": "consistency_checks"
+      },
+      {
+        "id": "current_state_confirm",
+        "type": "confirm",
+        "summary_template": "We now have a current-state model with:\n- SIPOC confirmed\n- {{workflows.maps}} workflow map(s)\n- Data elements catalog\n- Status model\n- Controls and measures\n- Scenarios\n\nDo you confirm this describes how it works today (even if you don’t like it)?",
+        "ask": "Is that current-state model accurate?",
+        "on_yes": "automation_fit_capture",
+        "on_no": "workflow_selection"
+      },
+      {
+        "id": "automation_fit_capture",
+        "type": "questions",
+        "questions": [
+          {
+            "id": "candidate_for_app",
+            "ask": "Based on the current state, does it feel worth investing time to digitize this into an app workflow?",
+            "save_to": "automation_fit.candidate_for_app",
+            "clarify_if": [
+              {
+                "condition": "unclear_yes_no",
+                "follow_up": "Which is closer: not worth it, maybe, or definitely worth it?"
+              }
+            ]
+          },
+          {
+            "id": "reasons_to_build",
+            "ask": "If yes or maybe: what are the top reasons (reduce missed steps, faster turnaround, fewer errors, better visibility, compliance)?",
+            "save_to": "automation_fit.reasons_to_build"
+          },
+          {
+            "id": "reasons_not_to_build",
+            "ask": "What are the reasons NOT to build an app (too rare, too variable, mostly human judgment, change would be harder than benefit)?",
+            "save_to": "automation_fit.reasons_not_to_build"
+          },
+          {
+            "id": "quick_wins",
+            "ask": "What quick wins could improve things without new software (better checklist, simpler form, clarified ownership, template, small policy change)?",
+            "save_to": "automation_fit.quick_wins_without_software"
+          }
+        ],
+        "next": "automation_fit_action"
+      },
+      {
+        "id": "automation_fit_action",
+        "type": "action",
+        "action": "score_automation_and_select_digitization_candidates",
+        "save_to": "automation_fit.digitization_candidates",
+        "next": "automation_fit_recommendation"
+      },
+      {
+        "id": "automation_fit_recommendation",
+        "type": "action",
+        "action": "generate_recommended_next_step",
+        "save_to": "automation_fit.recommended_next_step",
+        "next": "outputs_generate"
+      },
+      {
+        "id": "outputs_generate",
+        "type": "action",
+        "action": "generate_human_and_ai_outputs",
+        "save_to": "outputs",
+        "next": "final_output"
+      },
+      {
+        "id": "final_output",
+        "type": "output",
+        "output_format": "current_state_discovery_pack",
+        "template": {
+          "human_readable": "{{outputs.human_readable}}",
+          "ai_handoff": "{{outputs.ai_handoff}}",
+          "automation_fit": "{{automation_fit}}"
+        },
+        "next": "end"
+      },
+      {
+        "id": "end",
+        "type": "message",
+        "prompt": "Done. If you’d like, the next step is a separate 'app constraints & requirements' flow that uses this current-state pack as input."
+      }
+    ],
+    "actions": {
+      "initialize_workflow_maps_from_selection": {
+        "description": "Create workflow map skeletons from workflows.selected_workflows, assign workflow_id, set active_workflow_id to the first, and initialize capture state."
+      },
+      "commit_step_to_active_workflow": {
+        "description": "Append workflow_capture_state.active_step_buffer as a new step in the active workflow, infer lane list, extract artifacts touched, and reset active_step_buffer."
+      },
+      "advance_or_close_workflow_based_on_response": {
+        "description": "If user indicates 'done', set active workflow end_condition and mark workflow closed; otherwise store next step seed and continue."
+      },
+      "apply_workflow_corrections": {
+        "description": "Apply corrections (insert step, reorder, change owner, add exception) to the active workflow."
+      },
+      "activate_next_workflow_variant_or_finish": {
+        "description": "Set next workflow as active; if none remain, return all_variants_done."
+      },
+      "normalize_and_expand_decision_rules": {
+        "description": "Normalize decisions into rule candidates with rule_statement, who_decides, inputs_needed, and examples placeholders."
+      },
+      "derive_candidate_data_elements_from_workflows_and_artifacts": {
+        "description": "Extract candidate data elements from step inputs/outputs, artifacts, identifiers, and decision rules; de-duplicate by name."
+      },
+      "select_next_data_element_for_validation": {
+        "description": "Select the next unvalidated data element for user confirmation; set an internal pointer 'current'."
+      },
+      "commit_validated_data_element": {
+        "description": "Mark the current data element as validated and persist edits."
+      },
+      "detect_gaps_and_contradictions": {
+        "description": "Detect missing essentials (e.g., no end_condition, missing owners, missing artifacts) and contradictions (e.g., SLA exists but no definition). Populate validation.gaps and validation.contradictions."
+      },
+      "score_automation_and_select_digitization_candidates": {
+        "description": "Score suitability for digitization using current-state signals (volume, variability, handoffs, wait states, error/rework, compliance). Identify candidate workflows/steps and opportunities."
+      },
+      "generate_recommended_next_step": {
+        "description": "Choose recommended_next_step: 'do_not_build_yet', 'improve_process_first', 'pilot_lightweight_tooling', or 'proceed_to_app_requirements_flow' with rationale."
+      },
+      "generate_human_and_ai_outputs": {
+        "description": "Generate Mermaid SIPOC and swimlane diagrams plus a markdown narrative. Generate AI handoff: process_model JSON and app_candidate_inputs for a downstream app-requirements flow."
+      }
+    },
+    "spec_output_schema": {
+      "current_state_discovery_pack": {
+        "human_readable": {
+          "sipoc_mermaid": "string",
+          "swimlane_mermaid": "string",
+          "current_state_summary_markdown": "string"
+        },
+        "ai_handoff": {
+          "process_model": {
+            "engagement": "object",
+            "process_profile": "object",
+            "scope": "object",
+            "sipoc": "object",
+            "reality_checks": "object",
+            "artifacts": "object",
+            "roles": "object",
+            "workflows": "object",
+            "process_parameters": "object",
+            "pain_points": "object",
+            "validation": "object"
+          },
+          "app_candidate_inputs": {
+            "workflows_to_digitize": ["string"],
+            "highest_value_steps": ["string"],
+            "data_elements": ["object"],
+            "status_model": "object",
+            "controls": ["object"],
+            "measures": ["object"],
+            "must_handle_scenarios": ["string"]
+          }
+        },
+        "automation_fit": {
+          "candidate_for_app": "boolean",
+          "recommended_next_step": "string",
+          "reasons_to_build": ["string"],
+          "reasons_not_to_build": ["string"],
+          "quick_wins_without_software": ["string"],
+          "digitization_candidates": "object"
+        }
+      }
+    }
+  }
+  

@@ -1,0 +1,8 @@
+---
+name: rules
+description: This is a new rule
+---
+
+# Overview
+
+Whenever you make a change, add an entry to the change log document. If there is no change log document, create one. Don't create an entire .md for each new change.

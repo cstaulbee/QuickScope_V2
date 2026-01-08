@@ -1,0 +1,12 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "interview": "./src/graphs/interview_graph.py:graph"
+  },
+  "env": {
+    "OPENAI_API_KEY": ""
+  },
+  "python_version": "3.11"
+}
